@@ -620,7 +620,7 @@ const processTemplateFilesPromise = (file : string|undefined = undefined) : Prom
       try {
         list = getAllFiles(sourceDir + TEMPLATE_DIR);
       } catch (error) {
-        console.log(chalk.red(error));
+        console.log(chalk.red("Could not scan " + sourceDir + TEMPLATE_DIR));
       }
     } else {
       list = [file];
@@ -857,7 +857,7 @@ if (clearOutDir) {
 }
 
 if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir);
+  fs.mkdirSync(tempDir, { recursive: true });
 }
 
 console.log(chalk.black.bgWhite.bold("\n Air", chalk.white.bgBlue(" Fry \n")));
