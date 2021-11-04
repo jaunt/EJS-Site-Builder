@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 //import { Command } from 'commander';
 import ejs from "ejs";
 
@@ -12,9 +13,9 @@ import nconf from "nconf";
 
 nconf.argv().env().file({ file: "./airfry.json" });
 const pathConfig = nconf.get("paths");
-let sourceDir = pathConfig?.sourceDir || "./src";
+let sourceDir = pathConfig?.sourceDir || "./airfry";
 let outputDir = pathConfig?.outputDir || "./output";
-let tempDir = pathConfig?.tempDir || "./tmp";
+let tempDir = sourceDir + "/tmp";
 const optionsConfig = nconf.get("options");
 let clearOutDir = optionsConfig?.clearOutDir || true;
 
@@ -22,13 +23,10 @@ const libDir = "/js";
 
 const PRE_GENERATE_JS = "preGenerate.js";
 const PRE_GENERATE_NAME = "PRE_GENERATE";
-
 const POST_GENERATE_JS = "postGenerate.js";
 const POST_GENERATE_NAME = "POST_GENERATE";
-
 const TEMPLATE_DIR = "/templates";
 const DATA_DIR = "/data";
-
 const SCRIPT_ENTRY = "<script entry>";
 const SCRIPT_ENTRY_LENGTH = SCRIPT_ENTRY.length;
 const SCRIPT_LIB = "<script lib>";
@@ -816,6 +814,8 @@ const updateDataDeps = (path: Path) : void => {
 };
 
 const updateTemplateDeps = (templateName: TemplateName) => {
+  // when a template updates, we need to check its dependencies and also trigger its own
+  // generation if it is a page maker
   const deps = { ...(local.templateDepTree[templateName] || {}), [templateName]: true };
   console.log(chalk.green("Update Triggered by: " + templateName));
   updateDeps(deps);
@@ -851,7 +851,9 @@ program.parse();
 */
 
 if (clearOutDir) {
-  fs.rmdirSync(outputDir, { recursive: true });
+  if (fs.existsSync(outputDir)) {
+    fs.rmdirSync(outputDir, { recursive: true });
+  }
 }
 
 if (!fs.existsSync(tempDir)) {
