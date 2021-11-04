@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-//import { Command } from 'commander';
+import { Command } from 'commander';
 import ejs from "ejs";
 
 import vm from "vm";
@@ -852,7 +852,7 @@ program.parse();
 
 if (clearOutDir) {
   if (fs.existsSync(outputDir)) {
-    fs.rmdirSync(outputDir, { recursive: true });
+    fs.rmSync(outputDir, { recursive: true });
   }
 }
 
@@ -861,7 +861,13 @@ if (!fs.existsSync(tempDir)) {
 }
 
 console.log(chalk.black.bgWhite.bold("\n Air", chalk.white.bgBlue(" Fry \n")));
-console.log(chalk.blueBright("Version 0.0.1\n"));
+
+const program = new Command();
+
+program.option('-nw, --noWatch', 'quit after processing all templates')
+program.version('0.0.1');
+program.parse(process.argv);
+const options = program.opts();
 
 loadCache();
 
@@ -881,6 +887,12 @@ processGeneratePre()
   })
   .then(() => {
     // step 3. watch src directory
+
+    if (options.noWatch) {
+      console.log(`All files written.  No-watch option ending program now.`)
+      return
+    }
+
 
     const watcher = chokidar.watch(sourceDir, {
       ignored: /(^|[\/\\])\../, // ignore dotfiles
