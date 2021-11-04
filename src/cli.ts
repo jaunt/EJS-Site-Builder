@@ -173,7 +173,7 @@ function safeOutputCheck(func: fsFunc, path: string, ...args: unknown[]) {
   if (!isRelative(_outpath, path)) {
     throw "Trying to write " + path + " which is outside of " + _outpath;
   }
-  func(...args.slice(1));
+  func(path, ...args);
 }
 const writeFileSafe = safeOutputCheck.bind(null, fs.writeFile);
 const mkdirSyncSafe = safeOutputCheck.bind(null, fs.mkdirSync);
