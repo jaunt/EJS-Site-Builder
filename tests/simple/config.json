@@ -1,0 +1,8 @@
+{
+  "args": [
+    "--input ./templates",
+    "--output ./output",
+    "--cache ./cache",
+    "--clearCache"
+  ]
+}

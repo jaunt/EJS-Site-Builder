@@ -1,5 +1,6 @@
 import fs from "fs";
 import fspath from "path";
+
 /// ----------------------------------------------------------------------------
 /// Safety to prevent user from accidently
 /// writing files outside the output directory

@@ -23,31 +23,22 @@ const BAD_OPTIONS = 3;
 
 console.log(chalk.black.bgWhite.bold("\n Air", chalk.white.bgBlue(" Fry \n")));
 console.log(chalk.blueBright("Version " + version + "\n"));
-const program = new Command();
-
-program.addOption(new Option("-i, --input <inputDir>", "input directory"));
-program.addOption(new Option("-d, --data <dataDir>", "data directory"));
-program.addOption(new Option("-o, --output <outputDir>", "output directory"));
-program.addOption(
-  new Option("-t, --temp <tempDir>", "temp file directory (cache)")
-);
-program.addOption(
-  new Option("-nw, --noWatch", "quit after processing all templates")
-);
-program.addOption(
-  new Option("-wo, --watchOnly", "don't process at start, only watch")
-);
-program.addOption(
-  new Option("-k, --keepOutDir", "clear output directory on start")
-);
-program.addOption(new Option("-cc, --clearCache", "clear cache on start"));
+const program = new Command()
+  .option("-i, --input <inputDir>", "input directory")
+  .option("-d, --data <dataDir>", "data directory")
+  .option("-o, --output <outputDir>", "output directory")
+  .option("-c, --cache <cacheDir>", "cache directory")
+  .option("-nw, --noWatch", "quit after processing all templates")
+  .option("-wo, --watchOnly", "don't process at start, only watch")
+  .option("-k, --keepOutDir", "clear output directory on start")
+  .option("-cc, --clearCache", "clear cache on start");
 
 program.version(version);
 program.parse(process.argv);
 const options = program.opts();
 
 nconf.argv().env().file({ file: "./airfry.json" });
-const optionsConfig = nconf.get("options");
+const optionsConfig = nconf.get("options") || {};
 
 const getOption = (opt: string, def: string): string => {
   if (options[opt] && optionsConfig[opt]) {
@@ -75,7 +66,7 @@ const getOption = (opt: string, def: string): string => {
 const inputDir = getOption("input", "/airfry-input");
 const dataDir = getOption("input", "/airfry-data");
 const outputDir = getOption("output", "./airfry-output");
-const tempDir = getOption("temp", "./airfry-temp");
+const cacheDir = getOption("cache", "./airfry-cache");
 
 const keepOutDir = getOption("keepOutDir", "");
 const noWatch = getOption("noWatch", "");
@@ -88,9 +79,9 @@ if (!keepOutDir) {
   }
 }
 
-if (!fs.existsSync(tempDir)) {
-  chalk.green("Making temp dir: " + tempDir);
-  fs.mkdirSync(tempDir, { recursive: true });
+if (!fs.existsSync(cacheDir)) {
+  chalk.green("Making cache dir: " + cacheDir);
+  fs.mkdirSync(cacheDir, { recursive: true });
 }
 
 if (watchOnly && noWatch) {
@@ -116,7 +107,7 @@ if (isOneOrTheOtherRelative(inputDir, outputDir)) {
   exit(BAD_OPTIONS);
 }
 
-if (isOneOrTheOtherRelative(tempDir, outputDir)) {
+if (isOneOrTheOtherRelative(cacheDir, outputDir)) {
   exit(BAD_OPTIONS);
 }
 
@@ -124,11 +115,11 @@ if (isOneOrTheOtherRelative(dataDir, outputDir)) {
   exit(BAD_OPTIONS);
 }
 
-if (isOneOrTheOtherRelative(dataDir, tempDir)) {
+if (isOneOrTheOtherRelative(dataDir, cacheDir)) {
   exit(BAD_OPTIONS);
 }
 
-const airfry = new AirFry(inputDir, dataDir, outputDir, tempDir);
+const airfry = new AirFry(inputDir, dataDir, outputDir, cacheDir);
 
 if (!watchOnly) {
   // step 1:  process global.js

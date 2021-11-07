@@ -125,19 +125,19 @@ export class AirFry {
   readonly inputDir: string;
   readonly dataDir: string;
   readonly outputDir: string;
-  readonly tempDir: string;
+  readonly cacheDir: string;
   readonly outPath: string;
 
   constructor(
     inputDir: string,
     dataDir: string,
     outputDir: string,
-    tempDir: string
+    cacheDir: string
   ) {
     this.inputDir = inputDir;
     this.dataDir = dataDir;
     this.outputDir = outputDir;
-    this.tempDir = tempDir;
+    this.cacheDir = cacheDir;
     this.outPath = fspath.resolve("./" + this.outputDir);
     this.loadCache();
   }
@@ -166,9 +166,12 @@ export class AirFry {
   /// Safety to prevent user from accidently
   /// writing files outside the output directory
   /// ----------------------------------------------------------------------------
-
-  protected getDataFileNames(glob: string): string[] {
-    return getAllFiles(this.dataDir + "/" + glob);
+  protected getDataFileNames(globList?: string[]): string[] {
+    let files = getAllFiles(this.dataDir);
+    if (globList && globList.length > 0) {
+      files = micromatch(files, globList);
+    }
+    return files;
   }
 
   public getTemplateFileName(file: Path): string {
@@ -203,8 +206,8 @@ export class AirFry {
     }
   }
   protected loadCache(): void {
-    if (fs.existsSync(this.tempDir + "/cache.json")) {
-      let rawdata = fs.readFileSync(this.tempDir + "/cache.json");
+    if (fs.existsSync(this.cacheDir + "/cache.json")) {
+      let rawdata = fs.readFileSync(this.cacheDir + "/cache.json");
       if (rawdata && rawdata.length > 0) {
         this.state.cache = JSON.parse(rawdata.toString());
       }
@@ -212,7 +215,7 @@ export class AirFry {
   }
   protected storeCache(): void {
     let data = JSON.stringify(this.state.cache);
-    fs.writeFile(this.tempDir + "/cache.json", data, (err) => {
+    fs.writeFile(this.cacheDir + "/cache.json", data, (err) => {
       if (err) throw err;
     });
   }
