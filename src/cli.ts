@@ -17,7 +17,7 @@ import {
   POST_GENERATE_NAME,
 } from "./airfry";
 
-const version = "0.0.1"; // todo get version from git tag
+const version = "0.0.2"; // todo get version from git tag
 
 const BAD_OPTIONS = 3;
 

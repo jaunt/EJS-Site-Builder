@@ -1,8 +1,10 @@
-const { exec } = require("child_process");
-const controller = new AbortController();
-const { signal } = controller;
-
 const testsDir = "/tests/";
+const { spawn, exec } = require("child_process");
+const chalk = require("chalk");
+const { pipeline } = require("stream");
+const { doesNotReject } = require("assert");
+const { clearTimeout } = require("timers");
+const { getJSDocReadonlyTag } = require("typescript");
 
 module.exports = function (grunt) {
   // Project configuration.
@@ -28,9 +30,6 @@ module.exports = function (grunt) {
   grunt.registerTask("test", "test airfry", function (testName) {
     // Force task into async mode and grab a handle to the "done" function.
     const done = this.async();
-    // Run some sync stuff.
-    grunt.log.writeln("Processing task...");
-    // And some async stuff.
 
     const testDir = process.cwd() + testsDir + testName + "/";
 
@@ -41,32 +40,40 @@ module.exports = function (grunt) {
       return;
     }
 
-    const cmd =
-      process.cwd() +
-      "/lib/cli.js " +
-      (config.args ? config.args.join(" ") : "");
+    const cmd = process.cwd() + "/lib/cli.js";
 
-    grunt.log.writeln(cmd);
-    grunt.log.writeln(testDir);
+    grunt.log.writeln(
+      chalk.yellow("Command: node " + cmd + " " + config.args.join(" "))
+    );
+
+    const airfry = spawn("node", [cmd, ...config.args], {
+      stdio: ["ignore", process.stdout, "pipe"],
+      shell: true,
+    });
 
     const timeout = setTimeout(() => {
-      controller.abort();
-    }, 5000);
+      airfry.kill("SIGINT");
+    }, 1000);
 
-    const child = exec(
-      cmd,
-      { signal, cwd: testDir },
-      (error, stdout, stderr) => {
-        clearTimeout(timeout);
-        if (error) {
-          grunt.log.error(`exec error: ${error}`);
-          return;
-        }
-        grunt.log.writeln(`stdout: ${stdout}`);
-        grunt.log.error(`stderr: ${stderr}`);
-        done();
+    airfry.stderr.on("data", (data) => {
+      grunt.log.error(chalk.red.bold(`${data}`));
+    });
+
+    airfry.on("close", (code, signal) => {
+      if (signal) {
+        grunt.log.writeln(
+          `child process terminated due to receipt of signal ${signal}`
+        );
       }
-    );
+    });
+
+    airfry.on("exit", (code) => {
+      if (code) {
+        grunt.log.writeln(`child process exited with code ${code}`);
+      }
+      clearTimeout(timeout);
+      done();
+    });
   });
 
   grunt.registerTask("all", ["build", "test:simple"]);
