@@ -5,12 +5,21 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Program",
+      "name": "Launch AirFry",
       "program": "${workspaceFolder}/src/cli.ts",
       "request": "launch",
       "preLaunchTask": "build",
       "skipFiles": ["<node_internals>/**"],
       "type": "pwa-node"
+    },
+    {
+      "name": "Launch Tester",
+      "program": "${workspaceFolder}/src/tester.ts",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "skipFiles": ["<node_internals>/**"],
+      "type": "pwa-node",
+      "args": ["--input", "simple"]
     }
   ]
 }

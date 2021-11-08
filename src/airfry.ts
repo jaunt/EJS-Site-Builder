@@ -6,7 +6,7 @@ import fm from "front-matter";
 import chalk from "chalk";
 import micromatch from "micromatch";
 
-import { getAllFiles, writeFileSafe, mkdirSyncSafe } from "./shared";
+import { getAllFiles, isRelative } from "./shared";
 
 export const PRE_GENERATE_JS = "preGenerate.js";
 export const POST_GENERATE_JS = "postGenerate.js";
@@ -121,6 +121,20 @@ type AirFryData = {
   state: State;
 };
 
+type fsFunc = (...args: any[]) => unknown;
+
+function safeOutputCheck(
+  func: fsFunc,
+  outPath: string,
+  path: string,
+  ...args: unknown[]
+) {
+  if (!isRelative(outPath, path)) {
+    throw "Trying to write " + path + " which is outside of " + outPath;
+  }
+  func(path, ...args);
+}
+
 export class AirFry {
   readonly inputDir: string;
   readonly dataDir: string;
@@ -161,6 +175,14 @@ export class AirFry {
       json: {},
     },
   };
+
+  protected writeFileSafe(path: string, ...args: unknown[]) {
+    safeOutputCheck(fs.writeFile, this.outputDir, path, ...args);
+  }
+
+  protected mkdirSyncSafe(path: string, ...args: unknown[]) {
+    safeOutputCheck(fs.mkdirSync, this.outputDir, path, ...args);
+  }
 
   /// ----------------------------------------------------------------------------
   /// Safety to prevent user from accidently
@@ -275,13 +297,13 @@ export class AirFry {
   protected writeEntryScript(script: string, url: string): void {
     const writePath = "./" + fspath.join(this.outputDir, "/", url);
     if (!fs.existsSync(writePath)) {
-      mkdirSyncSafe(writePath, this.outPath, { recursive: true });
+      this.mkdirSyncSafe(writePath, { recursive: true });
     }
     let name = "index.js";
     if (url == "/") name = "main.js";
     const p = fspath.resolve(writePath + "/" + name);
     this.state.state["entry"][url] = p;
-    writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
+    this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
         console.log(chalk.red("Error writting: " + p));
       } else {
@@ -314,7 +336,7 @@ export class AirFry {
         );
         const writePath = fspath.parse(p).dir;
         if (!fs.existsSync(writePath)) {
-          mkdirSyncSafe(writePath, this.outPath, { recursive: true });
+          this.mkdirSyncSafe(writePath, { recursive: true });
         }
         this.state.state["json"][name] = p;
         let writeData;
@@ -326,9 +348,8 @@ export class AirFry {
         } else {
           writeData = JSON.stringify(siteFiles[file]);
         }
-        writeFileSafe(
+        this.writeFileSafe(
           p,
-          this.outPath,
           writeData,
           (err: NodeJS.ErrnoException | null): void => {
             if (err) {
@@ -406,11 +427,11 @@ export class AirFry {
         }
         const writePath = "./" + fspath.join(me.outputDir, "/", path);
         if (!fs.existsSync(writePath)) {
-          mkdirSyncSafe(writePath, me.outPath, { recursive: true });
+          me.mkdirSyncSafe(writePath, { recursive: true });
         }
         const p = fspath.resolve(writePath + "/index.html");
         me.state.state["html"][path] = p;
-        writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
+        me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
           if (err) {
             reject(template);
           } else {
@@ -594,18 +615,22 @@ export class AirFry {
       const parsed = fspath.parse(name);
       const dir = parsed.dir;
       if (!fs.existsSync(this.outputDir + libDir + "/" + dir)) {
-        mkdirSyncSafe(this.outputDir + libDir + "/" + dir, this.outPath, {
+        this.mkdirSyncSafe(this.outputDir + libDir + "/" + dir, {
           recursive: true,
         });
       }
       const p = fspath.resolve(this.outputDir + libDir + "/" + name + ".js");
       this.state.state["lib"][name] = p;
-      writeFileSafe(p, stripped, (err: NodeJS.ErrnoException | null): void => {
-        if (err) {
-          console.log(chalk.red(err));
+      this.writeFileSafe(
+        p,
+        stripped,
+        (err: NodeJS.ErrnoException | null): void => {
+          if (err) {
+            console.log(chalk.red(err));
+          }
+          console.log(chalk.cyan("Wrote: " + p));
         }
-        console.log(chalk.cyan("Wrote: " + p));
-      });
+      );
       return true;
     }
     return false;

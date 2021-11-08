@@ -24,7 +24,6 @@
   "homepage": "https://github.com/jauint/airfry#readme",
   "devDependencies": {
     "@types/node": "^16.11.6",
-    "grunt": "^1.4.1",
     "nodemon": "^2.0.14",
     "ts-node": "^10.4.0",
     "typescript": "^4.4.4"

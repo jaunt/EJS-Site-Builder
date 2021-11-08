@@ -37,6 +37,8 @@ program.version(version);
 program.parse(process.argv);
 const options = program.opts();
 
+console.log(options);
+
 nconf.argv().env().file({ file: "./airfry.json" });
 const optionsConfig = nconf.get("options") || {};
 
@@ -52,19 +54,21 @@ const getOption = (opt: string, def: string): string => {
   }
   let result = options[opt] || optionsConfig[opt];
   if (!result) {
-    chalk.yellow(
-      "No option specified for " +
-        chalk.white(opt) +
-        ", using default value: " +
-        chalk.green(def)
+    console.log(
+      chalk.yellow(
+        "No option specified for " +
+          chalk.white(opt) +
+          ", using default value: " +
+          chalk.green(def || "undefined")
+      )
     );
     result = def;
   }
-  return def;
+  return result;
 };
 
-const inputDir = getOption("input", "/airfry-input");
-const dataDir = getOption("input", "/airfry-data");
+const inputDir = getOption("input", "./airfry-input");
+const dataDir = getOption("data", "./airfry-data");
 const outputDir = getOption("output", "./airfry-output");
 const cacheDir = getOption("cache", "./airfry-cache");
 
@@ -74,7 +78,7 @@ const watchOnly = getOption("watchOnly", "");
 
 if (!keepOutDir) {
   if (fs.existsSync(outputDir)) {
-    chalk.green("Clearing output dir: " + outputDir);
+    console.log(chalk.green("Clearing output dir: " + outputDir));
     fs.rmSync(outputDir, { recursive: true });
   }
 }
@@ -85,15 +89,17 @@ if (!fs.existsSync(cacheDir)) {
 }
 
 if (watchOnly && noWatch) {
-  chalk.red("Can't both watch and not watch!  Exiting.");
+  console.log(chalk.red("Can't both watch and not watch!  Exiting."));
   exit(BAD_OPTIONS);
 }
 
 const isOneOrTheOtherRelative = (a: string, b: string): Boolean => {
   const result = isRelative(a, b) || isRelative(b, a);
   if (result) {
-    chalk.red(
-      "Directories must not contian each other: " + chalk.white(a + ", " + b)
+    console.log(
+      chalk.red(
+        "Directories must not contian each other: " + chalk.white(a + ", " + b)
+      )
     );
   }
   return result;

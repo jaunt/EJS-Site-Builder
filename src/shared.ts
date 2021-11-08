@@ -38,20 +38,4 @@ const getAllFiles = function (
   return aof;
 };
 
-type fsFunc = (...args: any[]) => unknown;
-
-function safeOutputCheck(
-  func: fsFunc,
-  outPath: string,
-  path: string,
-  ...args: unknown[]
-) {
-  if (!isRelative(outPath, path)) {
-    throw "Trying to write " + path + " which is outside of " + outPath;
-  }
-  func(path, ...args);
-}
-const writeFileSafe = safeOutputCheck.bind(null, fs.writeFile);
-const mkdirSyncSafe = safeOutputCheck.bind(null, fs.mkdirSync);
-
-export { isRelative, getAllFiles, writeFileSafe, mkdirSyncSafe };
+export { isRelative, getAllFiles };
