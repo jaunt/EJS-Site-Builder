@@ -36,6 +36,7 @@
     "chalk": "^4.1.2",
     "chokidar": "^3.5.2",
     "commander": "^8.3.0",
+    "diff2html": "^3.4.13",
     "ejs": "^3.1.6",
     "front-matter": "^4.0.2",
     "micromatch": "^4.0.4",
