@@ -235,11 +235,16 @@ export class AirFry {
       }
     }
   }
-  protected storeCache(): void {
+
+  // call before exiting
+  public storeCache(): void {
+    if (!fs.existsSync(this.cacheDir)) {
+      console.log(chalk.green("Making cache dir: " + this.cacheDir));
+      fs.mkdirSync(this.cacheDir, { recursive: true });
+    }
+    console.log(chalk.green("Writing cache"));
     let data = JSON.stringify(this.state.cache);
-    fs.writeFile(this.cacheDir + "/cache.json", data, (err) => {
-      if (err) throw err;
-    });
+    fs.writeFileSync(this.cacheDir + "/cache.json", data);
   }
 
   /// -----------------------------------------------------------------------------
@@ -324,7 +329,6 @@ export class AirFry {
     if (response.cache) {
       // page is requesting to update its cache
       this.state.cache[cacheName] = response.cache;
-      this.storeCache();
     }
     if (response.siteFiles) {
       // page is asking to create a json file in the output directory

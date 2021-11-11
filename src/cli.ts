@@ -5,6 +5,7 @@ import fspath from "path";
 import chalk from "chalk";
 import chokidar from "chokidar";
 import nconf from "nconf";
+import process from "process";
 
 import { isRelative } from "./shared";
 import { exit } from "process";
@@ -83,11 +84,6 @@ if (!keepOutDir) {
   }
 }
 
-if (!fs.existsSync(cacheDir)) {
-  chalk.green("Making cache dir: " + cacheDir);
-  fs.mkdirSync(cacheDir, { recursive: true });
-}
-
 if (watchOnly && noWatch) {
   console.log(chalk.red("Can't both watch and not watch!  Exiting."));
   exit(BAD_OPTIONS);
@@ -126,6 +122,28 @@ if (isOneOrTheOtherRelative(dataDir, cacheDir)) {
 }
 
 const airfry = new AirFry(inputDir, dataDir, outputDir, cacheDir);
+
+// We want to the cache to store to disk whenever we exit.
+// simplified from:
+// https://github.com/sindresorhus/exit-hook
+// https://github.com/sindresorhus/exit-hook/blob/main/license
+let _exited = false;
+const onExit = (shouldExit: boolean, signal: number) => {
+  if (_exited) return;
+  _exited = true;
+  airfry.storeCache();
+  if (shouldExit === true) {
+    process.exit(128 + signal);
+  }
+};
+process.once("exit", onExit);
+process.once("SIGINT", onExit.bind(undefined, true, 2));
+process.once("SIGTERM", onExit.bind(undefined, true, 15));
+process.on("message", (message) => {
+  if (message === "shutdown") {
+    onExit(true, -128);
+  }
+});
 
 if (!watchOnly) {
   // step 1:  process global.js

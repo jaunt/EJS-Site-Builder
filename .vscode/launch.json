@@ -13,13 +13,13 @@
       "type": "pwa-node"
     },
     {
-      "name": "Launch Tester",
-      "program": "${workspaceFolder}/src/tester.ts",
+      "name": "Launch CliFry",
+      "program": "${workspaceFolder}/src/clifry.ts",
       "request": "launch",
       "preLaunchTask": "build",
       "skipFiles": ["<node_internals>/**"],
       "type": "pwa-node",
-      "args": ["--input", "simple"]
+      "args": ["-t", "simple"]
     }
   ]
 }
