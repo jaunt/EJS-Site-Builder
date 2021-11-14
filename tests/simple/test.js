@@ -32,7 +32,7 @@ const test = (start) => {
     // diff -r /home/steve/projects/airfryts/tests/simple/output/index.html /home/steve/projects/airfryts/tests/simple/expected/index.html\n1c1\n< This is to test the most basic page generation: test 1\n\\ No newline at end of file\n---\n> This is to test the most basic page generation: test 12\n
     if (exitCode) {
       // for this test, the cli must end gracefully
-      reject("The cli ended unexpectedly");
+      reject("Airfry ended unexpectedly");
     } else {
       //const cmd = "diff
       const child = execFile(
