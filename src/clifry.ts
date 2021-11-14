@@ -2,28 +2,62 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import fs from "fs";
+import fspath from "path";
 const { spawn } = require("child_process");
 
 const version = "0.0.1"; // todo get version from git tag
 
 console.log(chalk.black.bgWhite.bold("\n CLI", chalk.white.bgBlue(" FRY ")));
 console.log(chalk.blueBright("Version " + version + "\n"));
-const program = new Command().requiredOption(
-  "-t, --tests [tests...]",
-  "Test name or names"
-);
+const program = new Command()
+  .option("-t, --tests [tests...]", "Test name or names.")
+  .option("-a, --all", "run all tests")
+  .option(
+    "-f, --folder <folder>",
+    "tests parent folder (default = ./tests)",
+    "./tests"
+  )
+  .option(
+    "-c, --cli <path>",
+    "path to cli to test (default = ./lib/cli.js)",
+    "./lib/cli.js"
+  );
 
 program.version(version);
 program.parse(process.argv);
 const options = program.opts();
 
+const findAllTests = function (dirPath: string): string[] {
+  // tests are any folders under the test directory
+  const found: string[] = [];
+  try {
+    const files = fs.readdirSync(dirPath);
+    files.forEach(function (file) {
+      if (fs.statSync(dirPath + "/" + file).isDirectory()) {
+        found.push(file);
+      }
+    });
+  } catch (error) {
+    console.error(chalk.red("Error finding tests."));
+    console.error(error);
+  }
+  return found;
+};
+
+let tests: string[];
+if (options.all) {
+  tests = findAllTests(options.folder);
+} else {
+  tests = options.tests;
+}
+
 const runTest = (testName: string) => {
   return new Promise(async function (resolve, reject) {
     const spawned: any = [];
-    const testDir = process.cwd() + "/tests/" + testName + "/";
-    let testModule = testDir + "test.js";
-    const cmd = process.cwd() + "/lib/cli.js";
-    const cwd = process.cwd() + "/tests/" + testName;
+    const testDir = fspath.resolve(options.folder + "/" + testName);
+    let testModule = fspath.resolve(testDir + "/" + "test.js");
+    const cmd = fspath.resolve(options.cli);
+    const cwd = fspath.resolve(options.folder + "/" + testName);
     try {
       const imported = await import(testModule);
       const test = imported.default;
@@ -138,13 +172,13 @@ const runTest = (testName: string) => {
   });
 };
 
-const tests = options.tests;
 tests.forEach((testName: string) => {
   runTest(testName)
     .then(() => {
       console.log(chalk.green.bold("> Test Run Succeeded."));
     })
     .catch((error) => {
-      console.error(chalk.green.bold("> Test Run Failed: " + error));
+      console.error(chalk.red.bold("> Test Run Failed: "));
+      console.error(chalk.red.bold(error));
     });
 });

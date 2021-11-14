@@ -238,13 +238,15 @@ export class AirFry {
 
   // call before exiting
   public storeCache(): void {
-    if (!fs.existsSync(this.cacheDir)) {
-      console.log(chalk.green("Making cache dir: " + this.cacheDir));
-      fs.mkdirSync(this.cacheDir, { recursive: true });
-    }
-    console.log(chalk.green("Writing cache"));
     let data = JSON.stringify(this.state.cache);
-    fs.writeFileSync(this.cacheDir + "/cache.json", data);
+    if (data && data != "{}") {
+      if (!fs.existsSync(this.cacheDir)) {
+        console.log(chalk.green("Making cache dir: " + this.cacheDir));
+        fs.mkdirSync(this.cacheDir, { recursive: true });
+      }
+      console.log(chalk.green("Writing cache"));
+      fs.writeFileSync(this.cacheDir + "/cache.json", data);
+    }
   }
 
   /// -----------------------------------------------------------------------------

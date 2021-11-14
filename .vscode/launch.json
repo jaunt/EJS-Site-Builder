@@ -19,7 +19,7 @@
       "preLaunchTask": "build",
       "skipFiles": ["<node_internals>/**"],
       "type": "pwa-node",
-      "args": ["-t", "simple"]
+      "args": ["-a"]
     }
   ]
 }

@@ -18,7 +18,7 @@ import {
   POST_GENERATE_NAME,
 } from "./airfry";
 
-const version = "0.0.2"; // todo get version from git tag
+const version = "0.0.3"; // todo get version from git tag
 
 const BAD_OPTIONS = 3;
 
@@ -32,13 +32,17 @@ const program = new Command()
   .option("-nw, --noWatch", "quit after processing all templates")
   .option("-wo, --watchOnly", "don't process at start, only watch")
   .option("-k, --keepOutDir", "clear output directory on start")
-  .option("-cc, --clearCache", "clear cache on start");
+  .option("-cc, --clearCache", "clear cache on start")
+  .option("-v, --verbose", "logging verbosity");
 
 program.version(version);
 program.parse(process.argv);
 const options = program.opts();
 
-console.log(options);
+if (options.verbose) {
+  console.log("Options detected:");
+  console.log(options);
+}
 
 nconf.argv().env().file({ file: "./airfry.json" });
 const optionsConfig = nconf.get("options") || {};
@@ -55,14 +59,16 @@ const getOption = (opt: string, def: string): string => {
   }
   let result = options[opt] || optionsConfig[opt];
   if (!result) {
-    console.log(
-      chalk.yellow(
-        "No option specified for " +
-          chalk.white(opt) +
-          ", using default value: " +
-          chalk.green(def || "undefined")
-      )
-    );
+    if (options.verbose) {
+      console.log(
+        chalk.yellow(
+          "No option specified for " +
+            chalk.white(opt) +
+            ", using default value: " +
+            chalk.green(def || "undefined")
+        )
+      );
+    }
     result = def;
   }
   return result;

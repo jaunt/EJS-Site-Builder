@@ -4,7 +4,7 @@
   "description": "Javascript powered SSG.  Fast, healthy, delicious.",
   "main": "./lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node lib/clifry.js -a",
     "start": "node lib/cli.js",
     "nodewatch": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/cli.ts",
     "build": "tsc"
