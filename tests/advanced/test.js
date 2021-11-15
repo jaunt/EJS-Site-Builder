@@ -13,13 +13,14 @@ const test = (start) => {
   return new Promise(async function (resolve, reject) {
     const testRun = start(
       {
-        name: "Simple Test 1",
-        description: "Make sure a simple template outputs properly.",
-        timeout: 5000,
+        name: "Advanced Test",
+        description: "Run through all output features.",
+        //timeout: 5000,
       },
       [
         "--input ./templates",
         "--output ./output",
+        "--data ./data",
         "--cache ./cache",
         "--noWatch",
       ]
@@ -40,9 +41,9 @@ const test = (start) => {
         ["--unified", "-r", testRun.dir + "/output", testRun.dir + "/expected"],
         (error, stdout) => {
           if (error) {
+            // diff2html expects only the output, so remove the args
             const cmdLength = child.spawnargs.join(" ").length;
             const output = stdout.slice(cmdLength);
-            testRun.log(output);
             const diffHtml = Diff2html.html(output, { drawFileList: true });
             testRun.writeFile(
               testRun.dir + "/diff.html",

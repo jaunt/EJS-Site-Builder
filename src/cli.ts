@@ -154,7 +154,7 @@ process.on("message", (message) => {
 if (!watchOnly) {
   // step 1:  process global.js
   airfry
-    .processGeneratePre()
+    .processPreGenerate()
     .then(() => {
       // step 2. process existing src files
       return airfry.processTemplateFilesPromise();
@@ -165,7 +165,7 @@ if (!watchOnly) {
     })
     .then(() => {
       // step 3. wait until first batch page generation
-      return airfry.processGeneratePost();
+      return airfry.processPostGenerate();
     })
     .then(() => {
       // step 3. watch src directory
@@ -237,7 +237,7 @@ if (!watchOnly) {
           const check = getKind(p);
           if (check.kind == PRE_GENERATE_NAME) {
             airfry
-              .processGeneratePre()
+              .processPreGenerate()
               .then(() => {
                 console.log(
                   chalk.green("Pre Generate JS updated -- updating deps")
@@ -250,7 +250,7 @@ if (!watchOnly) {
               });
           } else if (check.kind == POST_GENERATE_NAME) {
             airfry
-              .processGeneratePost()
+              .processPostGenerate()
               .then(() => {
                 console.log(chalk.green("Post Generate JS updated"));
               })

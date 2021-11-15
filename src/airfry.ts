@@ -56,7 +56,7 @@ type CompiledTemplate = {
 
 type ToGenerateData = {
   name: PageName;
-  generate?: string;
+  generate: string;
   triggeredBy: string;
 };
 
@@ -85,11 +85,16 @@ type FilesWritten = {
   [key: string]: Path;
 };
 
-type State = {
+type GeneratorDataOutput = {
+  [key: PageName]: { [key: string]: PageData };
+};
+
+type OutputData = {
   html: FilesWritten;
   entry: FilesWritten;
   lib: FilesWritten;
   json: FilesWritten;
+  generatorOutput: GeneratorDataOutput;
 };
 
 type PageGenerateRequest = {
@@ -100,10 +105,11 @@ type PageGenerateRequest = {
 type GeneratorResponse = {
   cache: CacheData;
   siteFiles: { [key: Path]: unknown };
-  generate: PageGenerateRequest[];
+  generate: PageGenerateRequest[] | PageGenerateRequest | undefined;
   watchFiles: Path[];
   watchGlobs: string[];
-  global: PageData;
+  generatorOutput: GeneratorDataOutput;
+  global: PageData; // only valid from pregenerat
 };
 
 type AirFryData = {
@@ -118,7 +124,7 @@ type AirFryData = {
   toGenerate: ToGenerate;
   globalData: PageData;
   cache: Cache;
-  state: State;
+  outputData: OutputData;
 };
 
 type fsFunc = (...args: any[]) => unknown;
@@ -168,11 +174,12 @@ export class AirFry {
     toGenerate: {},
     globalData: {},
     cache: {},
-    state: {
+    outputData: {
       html: {},
       entry: {},
       lib: {},
       json: {},
+      generatorOutput: {},
     },
   };
 
@@ -188,10 +195,34 @@ export class AirFry {
   /// Safety to prevent user from accidently
   /// writing files outside the output directory
   /// ----------------------------------------------------------------------------
-  protected getDataFileNames(globList?: string[]): string[] {
-    let files = getAllFiles(this.dataDir);
-    if (globList && globList.length > 0) {
-      files = micromatch(files, globList);
+  protected getDataFileNames(
+    source: string,
+    globList?: string | string[]
+  ): string[] {
+    const resData = fspath.resolve(this.dataDir);
+    let files = getAllFiles(resData);
+
+    if (globList) {
+      let fixedGlobs: string[];
+      if (!Array.isArray(globList)) {
+        fixedGlobs = [globList];
+      } else {
+        fixedGlobs = globList;
+      }
+      fixedGlobs = fixedGlobs.map((glob) => {
+        return resData + "/" + glob;
+      });
+      files = micromatch(files, fixedGlobs);
+    }
+    if (files.length == 0) {
+      console.log(
+        chalk.red(
+          "Warning, " +
+            source +
+            ".ejs requested data files but none were found at " +
+            this.dataDir
+        )
+      );
     }
     return files;
   }
@@ -239,7 +270,7 @@ export class AirFry {
   // call before exiting
   public storeCache(): void {
     let data = JSON.stringify(this.state.cache);
-    if (data && data != "{}") {
+    if (data) {
       if (!fs.existsSync(this.cacheDir)) {
         console.log(chalk.green("Making cache dir: " + this.cacheDir));
         fs.mkdirSync(this.cacheDir, { recursive: true });
@@ -258,6 +289,9 @@ export class AirFry {
     const globalDataAccessHandler = {
       get: function (...args: any) {
         // access to global deps was detected
+        if (!state.globalData[args[1] as string]) {
+          throw "Accessing undefined global data Element: " + args[1];
+        }
         state.globalDeps[name] = true;
         return Reflect.get.apply(null, args);
       },
@@ -309,7 +343,7 @@ export class AirFry {
     let name = "index.js";
     if (url == "/") name = "main.js";
     const p = fspath.resolve(writePath + "/" + name);
-    this.state.state["entry"][url] = p;
+    this.state.outputData.entry[url] = p;
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
         console.log(chalk.red("Error writting: " + p));
@@ -320,17 +354,22 @@ export class AirFry {
   }
 
   /// -----------------------------------------------------------------------------
-  /// Core
+  /// processGeneratorResponse
+  ///
+  /// Process what was resolved from generator scripts.
+  /// Deal with returned promise such as cache, site data, and dependency requests
   /// -----------------------------------------------------------------------------
   protected processGeneratorResponse(
     response: GeneratorResponse,
     name: PageName,
     cacheName: string
   ): void {
-    // Deal with returned promise such as cache, site data, and dependency requests
     if (response.cache) {
       // page is requesting to update its cache
       this.state.cache[cacheName] = response.cache;
+    }
+    if (response.generatorOutput) {
+      this.state.outputData.generatorOutput = response.generatorOutput;
     }
     if (response.siteFiles) {
       // page is asking to create a json file in the output directory
@@ -344,7 +383,7 @@ export class AirFry {
         if (!fs.existsSync(writePath)) {
           this.mkdirSyncSafe(writePath, { recursive: true });
         }
-        this.state.state["json"][name] = p;
+        this.state.outputData.json[name] = p;
         let writeData;
         if (
           typeof siteFiles[file] === "string" ||
@@ -390,44 +429,46 @@ export class AirFry {
     }
   }
 
+  /// -----------------------------------------------------------------------------
+  /// renderTemplate
+  ///
+  /// recursively render a template and all its children to disk
+  /// -----------------------------------------------------------------------------
   protected renderTemplate(
     template: TemplateName,
     path: string,
     data: PageData
   ): Promise<TemplateName> {
     const me = this;
-    // recursively render a template to disk
+    let current = template;
     return new Promise(function (resolve, reject) {
       try {
         const renderInclude = function (
           dependency: TemplateName,
           passedData?: PageData
         ): string {
+          current = dependency;
           if (dependency == "_body") {
             dependency = template;
-            // pass along the data from whoever was wrapped by this
-            passedData = {
-              ...(passedData || {}),
-              ...data,
-              global: me.getGlobalDataAccessProxy(template),
-            };
           }
           if (!me.state.templateDepTree[dependency]) {
             me.state.templateDepTree[dependency] = {};
           }
           me.state.templateDepTree[dependency][template] = true;
           return me.state.templates[dependency](
-            passedData,
+            {
+              ...(passedData || {}),
+              ...data,
+            },
             undefined,
             renderInclude
           );
         };
         let html;
         if (me.state.frontMatter[template].wrapper) {
+          current = me.state.frontMatter[template].wrapper as string;
           // render wrapper where _body gets redirected back to this template.
-          html = me.state.templates[
-            me.state.frontMatter[template].wrapper as string
-          ](data, undefined, renderInclude);
+          html = me.state.templates[current](data, undefined, renderInclude);
         } else {
           html = me.state.templates[template](data, undefined, renderInclude);
         }
@@ -436,7 +477,7 @@ export class AirFry {
           me.mkdirSyncSafe(writePath, { recursive: true });
         }
         const p = fspath.resolve(writePath + "/index.html");
-        me.state.state["html"][path] = p;
+        me.state.outputData.html[path] = p;
         me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
           if (err) {
             reject(template);
@@ -446,18 +487,26 @@ export class AirFry {
           }
         });
       } catch (error) {
-        console.log(chalk.red.bold(`${template}: ${path}`));
+        console.log(
+          chalk.red.bold(
+            `Error rendering page: ${template}, template: ${current}, path: ${path}`
+          )
+        );
         console.log(chalk.red(error));
         reject(template);
       }
     });
   }
 
+  /// -----------------------------------------------------------------------------
+  /// generatePages
+  ///
+  /// Generate all cued pages
+  /// running generate scripts if specified,
+  /// rendering templates to disk.
+  /// -----------------------------------------------------------------------------
   public generatePages(): Promise<void> {
     const me = this;
-    // Generate all pending pages
-    // running generate scripts if specified,
-    // rendering templates to disk.
     return new Promise(function (resolve, _) {
       let toGenerate = Object.values(me.state.toGenerate);
 
@@ -480,52 +529,78 @@ export class AirFry {
         return;
       }
 
+      const generateSimple = (name: string, path: string) => {
+        // Generate a page that does not have a generate script
+        // or returns no page creation data from it
+        const data = {
+          ...me.state.frontMatter[name],
+          global: me.getGlobalDataAccessProxy(name),
+        };
+        me.renderTemplate(name, path, data)
+          .then(() => {
+            checkDone(name, path);
+          })
+          .catch(() => {
+            checkDone(name, path);
+          });
+      };
+
       toGenerate.forEach((generateData: ToGenerateData) => {
         if (me.state.generateScripts[generateData.name]) {
           // found a generate script -> run it
           const generateSuccess = (response: GeneratorResponse) => {
             // callback on generate script complete
             const generate = response.generate;
-            if (!generate) {
-              throw new Error(
-                "No data returned by generate function: " + generateData.name
-              );
-            }
             me.processGeneratorResponse(
               response,
               generateData.name,
               "_" + generateData.name
             );
-            let pages = generate;
-            if (!Array.isArray(generate)) {
-              pages = [generate];
+            let pages: PageGenerateRequest[];
+            if (!generate) {
+              // script didn't specify anything for generate
+              // use front matter only
+              generateSimple(generateData.name, generateData.generate);
+              return;
+            } else if (!Array.isArray(generate)) {
+              // script specified a single page to generate
+              pages = [generate as PageGenerateRequest];
             } else {
+              // script specified an array of pages to generate
+              pages = generate;
               toRender += pages.length - 1; // account for extra pages
             }
-            pages.forEach((generatePageRequest: PageGenerateRequest) => {
-              const data = {
-                ...me.state.frontMatter[generateData.name],
-                global: me.getGlobalDataAccessProxy(generateData.name),
-                ...generatePageRequest.data,
-              };
-              me.renderTemplate(
-                generateData.name,
-                generatePageRequest.path,
-                data
-              )
-                .then(() => {
-                  checkDone(generateData.name, generatePageRequest.path);
-                })
-                .catch((error) => {
-                  console.log(
-                    chalk.red.bold(
-                      `${generateData.name}: ${generatePageRequest.path}`
-                    )
-                  );
-                  console.log(chalk.red(error));
-                  checkDone(generateData.name);
-                });
-            });
+            const pathStars = (generateData.generate.match(/\*/g) || []).length;
+            if (pathStars > 1) {
+              throw new Error(
+                "Generate paths can only include a single path replacement *" +
+                  generateData.name
+              );
+            } else if (pathStars == 0) {
+              throw new Error(
+                "Generate paths must include a path replacement * when generating 1 or more pages from data." +
+                  generateData.name
+              );
+            } else {
+              pages.forEach((generatePageRequest: PageGenerateRequest) => {
+                const data = {
+                  ...me.state.frontMatter[generateData.name],
+                  global: me.getGlobalDataAccessProxy(generateData.name),
+                  ...generatePageRequest.data,
+                };
+                const starReplacedPath = generateData.generate.replace(
+                  /\*/,
+                  generatePageRequest.path
+                );
+                me.renderTemplate(generateData.name, starReplacedPath, data)
+                  .then(() => {
+                    checkDone(generateData.name, starReplacedPath);
+                  })
+                  .catch(() => {
+                    checkDone(generateData.name);
+                  });
+              });
+            }
           };
           const generateError = (error: Error) => {
             me.chalkUpError(generateData.name, error);
@@ -552,7 +627,7 @@ export class AirFry {
               generateError,
               inputs,
               me.getGlobalDataAccessProxy(generateData.name),
-              me.getDataFileNames,
+              me.getDataFileNames.bind(me, generateData.name),
               me.state.cache["_" + generateData.name],
               me.scriptLogger.bind(null, generateData.name)
             );
@@ -565,45 +640,47 @@ export class AirFry {
             }
           }
         } else if (generateData.generate) {
-          const data = {
-            ...me.state.frontMatter[generateData.name],
-            global: me.getGlobalDataAccessProxy(generateData.name),
-          };
-          me.renderTemplate(generateData.name, generateData.generate, data)
-            .then(() => {
-              checkDone(generateData.name, generateData.generate);
-            })
-            .catch((error) => {
-              console.log(
-                chalk.red.bold(`${generateData.name}: ${generateData.generate}`)
-              );
-              console.log(chalk.red(error));
-              checkDone(generateData.name, generateData.generate);
-            });
+          generateSimple(generateData.name, generateData.generate);
         }
       });
     });
   }
 
+  /// -----------------------------------------------------------------------------
+  /// compileTemplate
+  ///
+  /// Pre-compile an EJS template
+  /// -----------------------------------------------------------------------------
   protected compileTemplate(source: string, name: TemplateName): void {
     // Pre compile ejs template
     const fn = ejs.compile(source, { client: true });
     this.state.templates[name] = fn;
   }
 
+  /// -----------------------------------------------------------------------------
+  /// cueGeneration
+  ///
+  /// Mark a page to be generated
+  /// -----------------------------------------------------------------------------
   protected cueGeneration(name: PageName, triggeredBy = ""): void {
-    // Mark a page ready for generation.
     const generate = this.state.frontMatter[name].generate as string;
-    this.state.toGenerate[name] = {
-      name: name,
-      generate: generate,
-      triggeredBy: triggeredBy,
-    };
+    if (generate) {
+      this.state.toGenerate[name] = {
+        name: name,
+        generate: generate,
+        triggeredBy: triggeredBy,
+      };
+    }
   }
 
+  /// -----------------------------------------------------------------------------
+  /// processScript
+  ///
+  /// Process a script tag found in a template file.
+  /// - Generate scripts are stored,
+  /// - site scripts are state to output.
+  /// -----------------------------------------------------------------------------
   protected processScript(source: string, name: PageName): boolean {
-    // Generate scripts are stored,
-    // site scripts are state to output.
     if (source.startsWith(SCRIPT_GENERATE)) {
       // add generate source to build map
       const stripped = source.slice(SCRIPT_GENERATE_LENGTH, -END_SCRIPT_LENGTH);
@@ -626,7 +703,7 @@ export class AirFry {
         });
       }
       const p = fspath.resolve(this.outputDir + libDir + "/" + name + ".js");
-      this.state.state["lib"][name] = p;
+      this.state.outputData.lib[name] = p;
       this.writeFileSafe(
         p,
         stripped,
@@ -642,8 +719,12 @@ export class AirFry {
     return false;
   }
 
+  /// -----------------------------------------------------------------------------
+  /// testTemplate
+  ///
+  /// Make sure extension is ejs and format the name the way we like it.
+  /// -----------------------------------------------------------------------------
   protected testTemplate(file: Path): string | undefined {
-    // Make sure extension is html and format the name the way we like it.
     const parsed = fspath.parse(file);
     const rel = fspath.relative(this.inputDir, parsed.dir);
     const name = rel + (rel ? "/" : "") + parsed.name;
@@ -654,12 +735,17 @@ export class AirFry {
     return undefined;
   }
 
+  /// -----------------------------------------------------------------------------
+  /// processTemplateFilesPromise
+  ///
+  /// Process all template files found under input directory,
+  /// or a single file if we had been watching it for changes.
+  /// -----------------------------------------------------------------------------
   public processTemplateFilesPromise(
     file: string | undefined = undefined
   ): Promise<string[]> {
     const me = this;
-    // Process all template files found under input director,
-    // or a single file if we had been watching it for changes.
+
     return new Promise(function (resolve, reject) {
       let list: string[] = [];
       if (file == undefined) {
@@ -726,22 +812,22 @@ export class AirFry {
             checkDone(name);
           });
         } else {
-          console.log(
-            chalk.yellow(
-              "Warning, non html file found in templates folders: " + file
-            )
-          );
           checkDone();
         }
       });
     });
   }
 
-  public processGeneratePre(): Promise<void> {
+  /// -----------------------------------------------------------------------------
+  /// processPreGenerate
+  ///
+  /// preGenerate.js creates global data for all generate scripts.
+  /// If changed via watcher, make sure to re-generate
+  /// any pages that asked to depend on global.
+  /// -----------------------------------------------------------------------------
+  public processPreGenerate(): Promise<void> {
     const me = this;
-    // preGenerate.js creates global data for all generate scripts.
-    // If changed via watcher, make sure to re-generate
-    // any pages that asked to depend on global.
+
     return new Promise(function (resolve, reject) {
       const generateSuccess = (response: GeneratorResponse) => {
         me.state.globalData = response.global;
@@ -777,14 +863,20 @@ export class AirFry {
           reject(error);
         }
       } else {
+        console.log(chalk.blue(PRE_GENERATE_JS + " not found, skipping."));
         resolve(); // no global data
       }
     });
   }
 
-  public processGeneratePost(): Promise<void> {
+  /// -----------------------------------------------------------------------------
+  /// processPostGenerate
+  ///
+  /// postGenerate.js has access what we wrote during site generation
+  /// -----------------------------------------------------------------------------
+  public processPostGenerate(): Promise<void> {
     const me = this;
-    // postGenerate.js has access what we wrote during site generation
+
     return new Promise(function (resolve, reject) {
       const generateSuccess = (response: GeneratorResponse) => {
         me.processGeneratorResponse(
@@ -808,7 +900,7 @@ export class AirFry {
             require,
             generateSuccess,
             generateError,
-            me.state.state,
+            me.state.outputData,
             me.scriptLogger.bind(null, POST_GENERATE_NAME)
           );
         } catch (error) {
@@ -816,11 +908,18 @@ export class AirFry {
           reject(error);
         }
       } else {
+        console.log(chalk.blue(POST_GENERATE_JS + " not found, skipping."));
         resolve(); // no global data
       }
     });
   }
 
+  /// -----------------------------------------------------------------------------
+  /// updateDeps
+  ///
+  /// When watching for file changes, we make sure to
+  /// trigger any dependencies to regenerate.
+  /// -----------------------------------------------------------------------------
   protected updateDeps(dependencies: Dependencies, dependency = ""): void {
     for (const pageName in dependencies) {
       // tell the generator that this data file
@@ -837,6 +936,11 @@ export class AirFry {
       });
   }
 
+  /// -----------------------------------------------------------------------------
+  /// updateDataDeps
+  ///
+  /// It's up to generator scripts to tell us which datafiles they'd like to watch
+  /// -----------------------------------------------------------------------------
   updateDataDeps(path: Path): void {
     let dependencies;
     // intelligently find the dep
@@ -862,6 +966,11 @@ export class AirFry {
     }
   }
 
+  /// -----------------------------------------------------------------------------
+  /// updateTemplateDeps
+  ///
+  /// It's up to generator scripts to tell us which datafiles they'd like to watch
+  /// -----------------------------------------------------------------------------
   updateTemplateDeps(templateName: TemplateName) {
     // when a template updates, we need to check its dependencies and also trigger its own
     // generation if it is a page maker

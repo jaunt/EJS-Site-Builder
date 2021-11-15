@@ -22,14 +22,15 @@ const getAllFiles = function (
   dirPath: string,
   arrayOfFiles?: string[]
 ): string[] {
+  const resDir = fspath.resolve(dirPath);
   const aof: string[] = arrayOfFiles || [];
   try {
-    const files = fs.readdirSync(dirPath);
+    const files = fs.readdirSync(resDir);
     files.forEach(function (file) {
-      if (fs.statSync(dirPath + "/" + file).isDirectory()) {
-        arrayOfFiles = getAllFiles(dirPath + "/" + file, arrayOfFiles);
+      if (fs.statSync(resDir + "/" + file).isDirectory()) {
+        arrayOfFiles = getAllFiles(resDir + "/" + file, aof);
       } else {
-        aof.push(fspath.join("./", dirPath, "/", file));
+        aof.push(resDir + "/" + file);
       }
     });
   } catch (error) {
