@@ -6,28 +6,27 @@ cars: [red, blue, yellow]
 wrapper: wrappers/main
 ---
 
-<template>
-  This page will be wrapped in wrappers/main.js, taking the place if _body.
-  <br />
-  Here is a simple include:
-  <br />
-  <%- include('widgets/label', {"className": "talk","text": "about me"}); %>
-  <br />
-  Global Data and functions: <%= global.date %> <%= global.toLowerCase("HELLO!")
+This page will be wrapped in wrappers/main.js, taking the place if _body.
+<br />
+Here is a simple include:
+<br />
+<%- include('widgets/label', {"className": "talk","text": "about me"}); %>
+<br />
+Global Data and functions: <%= global.date %> <%= global.toLowerCase("HELLO!")
   %>
-  <br />
+<br />
 
-  <% cars.forEach((car)=> { %>
-  Car color: <%= car %>
-  <br />
-  <% }) %>
+<% cars.forEach((car)=> { %>
+Car color: <%= car %>
+<br />
+<% }) %>
 
-  <br />
+<br />
 
-  <% if (fromPage) { %>
-  <div>I am special:<%= fromPage %></div>
-  <% } %>
-</template>
+<% if (fromPage) { %>
+<div>I am special:<%= fromPage %></div>
+<% } %>
+
 
 <script entry>
   // entry scripts are optional and result in <name>.js placed beside the generated page,

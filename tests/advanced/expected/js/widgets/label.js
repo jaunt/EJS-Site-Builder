@@ -1,10 +1,4 @@
-<div class="<%= className %>"><%= text %></div>
-<div><%= global.date %></div>
-<% if (fromPage) { %>
-<div>My parents are special: <%= fromPage %></div>
-<% } %>
 
-<script lib>
   // anything here will be written to "Label.js"
   function count(className) {
     var elements = document.getElementsByClassName("className");
@@ -13,4 +7,3 @@
   export {
     count
   };
-</script>
