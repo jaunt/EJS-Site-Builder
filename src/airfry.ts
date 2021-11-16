@@ -94,7 +94,7 @@ type OutputData = {
   entry: FilesWritten;
   lib: FilesWritten;
   json: FilesWritten;
-  generatorOutput: GeneratorDataOutput;
+  outData: GeneratorDataOutput;
 };
 
 type PageGenerateRequest = {
@@ -108,7 +108,7 @@ type GeneratorResponse = {
   generate: PageGenerateRequest[] | PageGenerateRequest | undefined;
   watchFiles: Path[];
   watchGlobs: string[];
-  generatorOutput: GeneratorDataOutput;
+  outData: GeneratorDataOutput;
   global: PageData; // only valid from pregenerat
 };
 
@@ -179,7 +179,7 @@ export class AirFry {
       entry: {},
       lib: {},
       json: {},
-      generatorOutput: {},
+      outData: {},
     },
   };
 
@@ -368,8 +368,8 @@ export class AirFry {
       // page is requesting to update its cache
       this.state.cache[cacheName] = response.cache;
     }
-    if (response.generatorOutput) {
-      this.state.outputData.generatorOutput = response.generatorOutput;
+    if (response.outData) {
+      this.state.outputData.outData[name] = response.outData;
     }
     if (response.siteFiles) {
       // page is asking to create a json file in the output directory
@@ -894,7 +894,7 @@ export class AirFry {
       if (fs.existsSync(g)) {
         const script = fs.readFileSync(g, "utf8");
         const code =
-          "((require, resolve, reject, state, log) =>  {" + script + "})";
+          "((require, resolve, reject, output, log) =>  {" + script + "})";
         try {
           vm.runInThisContext(code)(
             require,

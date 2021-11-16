@@ -15,7 +15,7 @@ wrapper: wrappers/main
   const fs = require("fs");
   let posts;
   if (!inputs.triggeredBy) {
-    posts = getDataFileNames("blog/*.md"); // can use glob.
+    posts = getDataFileNames("blog/*.html"); // can use glob.
   } else {
     posts = [inputs.triggeredBy];
   }
@@ -34,19 +34,21 @@ wrapper: wrappers/main
 
   // maybe we want post data as json to be injested by a javascript component...
   siteData = {};
+  postData = []
   posts.forEach((post) => {
-    siteData["posts/data/" + post.path + "/" + "data.json"] = {
+    postData.push({
       path: post.path,
       title: post.title,
-    };
+    });
   });
+  siteData["posts/data.json"] = postData
 
   resolve({
     generate: posts,
     siteFiles: siteData,
-    watchGlobs: [
-      // or can use Glob matching
-      "blog/*.md",
-    ],
+    watchGlobs: ["blog/*.html"],
+    outData: {
+      time: (new Date()).toISOString(),
+    }
   });
 </script>

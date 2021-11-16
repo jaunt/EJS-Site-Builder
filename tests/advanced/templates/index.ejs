@@ -1,19 +1,33 @@
 ---
 generate: /
 title: test 1
-fromPage: "I am root!"
+fromPage: I am root!
+cars: [red, blue, yellow]
 wrapper: wrappers/main
 ---
 
-This page will be wrapped in wrappers/main.js, taking the place if _body.
-<br />
-Here is a simple include:
-<br />
-<%- include('widgets/label', {"className": "talk","text": "about me"}); %>
-<br />
-Global Data and functions: <%= global.date %> <%= global.toLowerCase("HELLO!")
-%> Some formatted golang code using something we imported in global:
-<br />
+<template>
+  This page will be wrapped in wrappers/main.js, taking the place if _body.
+  <br />
+  Here is a simple include:
+  <br />
+  <%- include('widgets/label', {"className": "talk","text": "about me"}); %>
+  <br />
+  Global Data and functions: <%= global.date %> <%= global.toLowerCase("HELLO!")
+  %>
+  <br />
+
+  <% cars.forEach((car)=> { %>
+  Car color: <%= car %>
+  <br />
+  <% }) %>
+
+  <br />
+
+  <% if (fromPage) { %>
+  <div>I am special:<%= fromPage %></div>
+  <% } %>
+</template>
 
 <script entry>
   // entry scripts are optional and result in <name>.js placed beside the generated page,

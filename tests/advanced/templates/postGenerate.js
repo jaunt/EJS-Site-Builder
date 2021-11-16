@@ -5,7 +5,7 @@
 // or reject on failure.
 //
 // Inputs:
-//  state -> information about all files written to output
+//  outData -> information about all files written to output
 //
 // Outputs:
 //
@@ -15,7 +15,7 @@
 resolve({
   siteFiles: {
     "multipage.json": {
-      state,
+      output,
     },
   },
 });
