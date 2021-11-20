@@ -11,10 +11,13 @@ const diff2htmlstyle = `
 
 const test = (start) => {
   return new Promise(async function (resolve, reject) {
+    // STEP 1, delete data and templates then copy templates-time-0 and data-time-0 to data and templates
+
+    // STEP 2, run airfry
     const testRun = start(
       {
         name: "Advanced Test",
-        description: "Run through all output features.",
+        description: "Run through all features.",
         //timeout: 5000,
       },
       [
@@ -22,11 +25,23 @@ const test = (start) => {
         "--output ./output",
         "--data ./data",
         "--cache ./cache",
-        "--noWatch",
       ]
     );
 
     testRun.log("hello");
+
+    // STEP 3, wait for settle
+    await testRun.sleep(3000);
+
+    //  copy output to output-time-0 and compare compare with expected-time-zero
+
+    testRun.log("there");
+
+    // STEP 4, loop {
+    //  copy time data-time-N and templates-time-N contents recursively into data and templates
+    //  wait for settle
+    //  copy output to output-time-N compare with expected-time-N
+    // }
 
     const exitCode = await testRun.stopped();
 

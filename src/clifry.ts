@@ -64,6 +64,7 @@ const runTest = (testName: string) => {
       type TesterState = {
         process: any;
         errors: string[];
+        output: string[];
         name: string;
         description: string;
         timeout: NodeJS.Timeout | null;
@@ -71,11 +72,12 @@ const runTest = (testName: string) => {
       await test((attr: any, args: string[]) => {
         const state: TesterState = {
           process: spawn("node", [cmd, ...args], {
-            stdio: ["ignore", process.stdout, "pipe"],
+            stdio: "pipe",
             shell: true,
             cwd: cwd,
           }),
           errors: [],
+          output: [],
           name: attr.name || "",
           description: attr.name || "",
           timeout: attr.timeout
@@ -96,9 +98,12 @@ const runTest = (testName: string) => {
           console.log("> " + "Spawned");
         });
 
+        state.process.stdout.on("data", (data: Buffer) => {
+          state.output.push(data.toString());
+        });
+
         state.process.stderr.on("data", (data: Buffer) => {
           state.errors.push(data.toString());
-          console.log("> " + data.toString());
         });
 
         state.process.on("close", (code: number, signal: string) => {
@@ -151,6 +156,24 @@ const runTest = (testName: string) => {
           },
           writeFile: (file: string, data: string) => {
             fs.writeFileSync(file, data);
+          },
+          sleep: (ms: number) => {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+          },
+          untilOutputIncludes: (search: string) => {
+            const _outIncludes = (search: string) =>
+              state.output.find((value) => value.includes(search));
+            return new Promise(function (resolve) {
+              if (_outIncludes(search)) {
+                resolve(search);
+              } else {
+                state.process.stdout.on("data", (data: Buffer) => {
+                  if (_outIncludes(search)) {
+                    resolve(search);
+                  }
+                });
+              }
+            });
           },
         };
       });

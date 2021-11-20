@@ -39,4 +39,32 @@ const getAllFiles = function (
   return aof;
 };
 
-export { isRelative, getAllFiles };
+/// -----------------------------------------------------------------------------
+/// Simple pinger until done is called
+/// -----------------------------------------------------------------------------
+class Pinger {
+  readonly timeout;
+  readonly id: string;
+  private _done: boolean = false;
+  private timer: NodeJS.Timeout | null = null;
+  private ping: (id: string) => void;
+  constructor(id: string, func: (id: string) => void, timeout: number = 2000) {
+    this.id = id;
+    this.ping = func;
+    this._startTimer();
+    this.timeout = timeout;
+  }
+  private _startTimer() {
+    this.timer = setTimeout(() => {
+      this.ping(this.id);
+      if (!this._done) this._startTimer();
+    }, this.timeout);
+  }
+  done() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
+  }
+}
+
+export { isRelative, getAllFiles, Pinger };

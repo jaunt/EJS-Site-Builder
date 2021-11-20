@@ -1,0 +1,46 @@
+---
+generate: /
+title: test 1
+fromPage: I am root!
+cars: [red, blue, yellow]
+wrapper: wrappers/main
+---
+
+This page will be wrapped in wrappers/main.js, taking the place if _body.
+<br />
+Here is a simple include:
+<br />
+<%- include('widgets/label', {"className": "talk","text": "about me"}); %>
+<br />
+Global Data and functions: <%= global.date %> <%= global.toLowerCase("HELLO!")
+  %>
+<br />
+
+<% cars.forEach((car)=> { %>
+Car color: <%= car %>
+<br />
+<% }) %>
+
+<br />
+
+<% if (fromPage) { %>
+<div>I am special:<%= fromPage %></div>
+<% } %>
+
+
+<script entry>
+  // entry scripts are optional and result in <name>.js placed beside the generated page,
+  // They are commonly used for multi page application entry points (vite for example)
+  import data from "data.json";
+  console.log(data);
+</script>
+
+<script generate>
+  // can use this to optionally run multiple async data sources through this template to create 1 or more pages.
+  // as well as to write data files
+  resolve({
+    siteFiles: {
+      ["README.md"]: "*This will get generated!*",
+    },
+  });
+</script>

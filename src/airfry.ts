@@ -6,7 +6,7 @@ import fm from "front-matter";
 import chalk from "chalk";
 import micromatch from "micromatch";
 
-import { getAllFiles, isRelative } from "./shared";
+import { getAllFiles, isRelative, Pinger } from "./shared";
 
 export const PRE_GENERATE_JS = "preGenerate.js";
 export const POST_GENERATE_JS = "postGenerate.js";
@@ -547,8 +547,20 @@ export class AirFry {
 
       toGenerate.forEach((generateData: ToGenerateData) => {
         if (me.state.generateScripts[generateData.name]) {
+          let pinger = new Pinger(
+            generateData.name,
+            (id: string) => {
+              console.log(
+                chalk.yellowBright(
+                  "Waiting for generator to call resolve: " + id
+                )
+              );
+            },
+            3000
+          );
           // found a generate script -> run it
           const generateSuccess = (response: GeneratorResponse) => {
+            pinger.done();
             // callback on generate script complete
             const generate = response.generate;
             me.processGeneratorResponse(
@@ -603,18 +615,17 @@ export class AirFry {
             }
           };
           const generateError = (error: Error) => {
+            pinger.done();
             me.chalkUpError(generateData.name, error);
             checkDone(generateData.name);
           };
           if (!me.state.cache["_" + generateData.name]) {
             me.state.cache["_" + generateData.name] = {};
           }
-
           const inputs = {
             triggeredBy: generateData.triggeredBy,
             frontMatter: me.state.frontMatter[generateData.name].attributes,
           };
-
           const code =
             "((require, resolve, reject, inputs, global, getDataFileNames, cache, log) =>  {" +
             me.state.generateScripts[generateData.name] +
@@ -635,7 +646,7 @@ export class AirFry {
             if (error instanceof Error) {
               generateError(error);
             } else {
-              console.log("Unknown error " + error);
+              console.log(chalk.red("Unknown error " + error));
               generateError(new Error("unknown error"));
             }
           }
@@ -827,9 +838,18 @@ export class AirFry {
   /// -----------------------------------------------------------------------------
   public processPreGenerate(): Promise<void> {
     const me = this;
-
     return new Promise(function (resolve, reject) {
+      let pinger = new Pinger(
+        "preGenerate",
+        (id: string) => {
+          console.log(
+            chalk.yellowBright("Waiting for generator to call resolve: " + id)
+          );
+        },
+        3000
+      );
       const generateSuccess = (response: GeneratorResponse) => {
+        pinger.done();
         me.state.globalData = response.global;
         me.processGeneratorResponse(
           response,
@@ -840,6 +860,7 @@ export class AirFry {
       };
       const g = me.inputDir + "/" + PRE_GENERATE_JS;
       const generateError = (error: Error) => {
+        pinger.done();
         me.chalkUpError(PRE_GENERATE_NAME, error);
         reject(error);
       };
@@ -876,9 +897,18 @@ export class AirFry {
   /// -----------------------------------------------------------------------------
   public processPostGenerate(): Promise<void> {
     const me = this;
-
     return new Promise(function (resolve, reject) {
+      let pinger = new Pinger(
+        "postGenerate",
+        (id: string) => {
+          console.log(
+            chalk.yellowBright("Waiting for generator to call resolve: " + id)
+          );
+        },
+        3000
+      );
       const generateSuccess = (response: GeneratorResponse) => {
+        pinger.done();
         me.processGeneratorResponse(
           response,
           POST_GENERATE_JS,
@@ -888,6 +918,7 @@ export class AirFry {
       };
       const g = me.inputDir + "/" + POST_GENERATE_JS;
       const generateError = (error: Error) => {
+        pinger.done();
         me.chalkUpError(POST_GENERATE_NAME, error);
         reject(error);
       };
