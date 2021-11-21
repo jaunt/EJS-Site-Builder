@@ -89,9 +89,9 @@ const test = (CliFry) => {
     // }
     for (let i = 1; i <= lastTest; i++) {
       copyInputs(testRun.dir, importScripts);
-      await testRun.waitUntilOutputIdleSeconds(1);
+      await testRun.waitUntilOutputIdleSeconds(5);
       if (!outputMatchesExpected(testRun.dir, i)) {
-        reject("Output does not match expected at time " + i);
+        reject("Output does not match expected at time " + 0);
         return;
       }
     }
@@ -99,37 +99,7 @@ const test = (CliFry) => {
     testRun.forceStop();
     await testRun.sleep(1000);
 
-    resolve("Test success");
-
-    /*
-    const exitCode = await testRun.stopped();
-    // diff -r /home/steve/projects/airfryts/tests/simple/output/index.html /home/steve/projects/airfryts/tests/simple/expected/index.html\n1c1\n< This is to test the most basic page generation: test 1\n\\ No newline at end of file\n---\n> This is to test the most basic page generation: test 12\n
-    if (exitCode) {
-      // for this test, the cli must end gracefully
-      reject("Airfry ended unexpectedly");
-    } else {
-      //const cmd = "diff
-      const child = execFile(
-        "diff",
-        ["--unified", "-r", testRun.dir + "/output", testRun.dir + "/expected"],
-        (error, stdout) => {
-          if (error) {
-            // diff2html expects only the output, so remove the args
-            const cmdLength = child.spawnargs.join(" ").length;
-            const output = stdout.slice(cmdLength);
-            const diffHtml = Diff2html.html(output, { drawFileList: true });
-            testRun.writeFile(
-              testRun.dir + "/diff.html",
-              diff2htmlstyle + "\n" + diffHtml
-            );
-            reject("Output does not match expected");
-          } else {
-            resolve();
-          }
-        }
-      );
-    }
-    */
+    resolve("success");
   });
 };
 

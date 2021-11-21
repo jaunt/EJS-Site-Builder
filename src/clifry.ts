@@ -13,6 +13,21 @@ const version = "0.0.1"; // todo get version from git tag
 
 console.log(chalk.black.bgWhite.bold("\n CLI", chalk.white.bgBlue(" FRY ")));
 console.log(chalk.blueBright("Version " + version + "\n"));
+
+const _formatLog = (useChalk = chalk.green, ...args: any) => {
+  for (let arg of args) {
+    let txt;
+    if (typeof arg === "string" || (arg as any) instanceof String) {
+      txt = arg;
+    } else {
+      txt = JSON.stringify(arg, null, 2);
+    }
+    console.log(useChalk("> " + chalk.bgWhite(arg)));
+  }
+};
+const log = _formatLog.bind(null, chalk.green);
+const logError = _formatLog.bind(null, chalk.red);
+
 const program = new Command()
   .option("-t, --tests [tests...]", "Test name or names.")
   .option("-a, --all", "run all tests")
@@ -42,8 +57,7 @@ const findAllTests = function (dirPath: string): string[] {
       }
     });
   } catch (error) {
-    console.error(chalk.red("Error finding tests."));
-    console.error(error);
+    logError("Error finding tests.", error);
   }
   return found;
 };
@@ -55,13 +69,36 @@ if (options.all) {
   tests = options.tests;
 }
 
+const clearTimers = (state: any) => {
+  if (state.timeout) {
+    clearTimeout(state.timeout);
+    state.timeout = null;
+  }
+  if (state.pinger != null) {
+    state.pinger.done();
+  }
+};
+
+const cleanupTest = (state: any) => {
+  clearTimers(state);
+  if (state.process && state.process.exitCode == null) {
+    // remove all listeners and exit
+    state.process.removeAllListeners("exit");
+    state.process.removeAllListeners("close");
+    state.process.removeAllListeners("sstate.processawn");
+    state.process.removeAllListeners("data");
+    state.process.kill("SIGINT");
+    log("Force quitting CLI on cleanup");
+  }
+};
+
 const runTest = (testName: string) => {
   return new Promise(async function (resolve, reject) {
-    const spawned: any = [];
     const testDir = fspath.resolve(options.folder + "/" + testName);
     let testModule = fspath.resolve(testDir + "/" + "test.js");
     const cmd = fspath.resolve(options.cli);
     const cwd = fspath.resolve(options.folder + "/" + testName);
+    let testState: any;
     try {
       const imported = await import(testModule);
       const test = imported.default;
@@ -77,8 +114,9 @@ const runTest = (testName: string) => {
         description: string;
         timeoutTime: number;
         timeout: NodeJS.Timeout | null;
+        result: string | null;
       };
-      await test(
+      const result = await test(
         (
           attr: {
             name: string;
@@ -88,6 +126,8 @@ const runTest = (testName: string) => {
           },
           args: string[]
         ) => {
+          log("Test: " + attr.name);
+          log("Description: " + attr.description);
           const state: TesterState = {
             process: null,
             errors: [],
@@ -100,29 +140,25 @@ const runTest = (testName: string) => {
             description: attr.name || "",
             timeoutTime: attr.timeout,
             timeout: null,
+            result: null,
           };
+          testState = state;
           return {
             dir: cwd,
             start: () => {
-              state.timeout = state.timeoutTime
-                ? setTimeout(() => {
-                    console.log("Test timeout expired. Force quitting CLI.");
-                    state.process.kill("SIGINT");
-                    state.timeout = null;
-                  }, attr.timeout)
-                : null;
+              if (state.process && state.process.exitCode == null) {
+                logError(
+                  "CLI Already started.  Use forceStop or wait until the process ends."
+                );
+                return;
+              }
               state.process = spawn("node", [cmd, ...args], {
                 stdio: ["pipe", "pipe", "pipe"],
                 shell: true,
                 cwd: cwd,
               });
-              console.log("Test Run Started: " + attr.name);
-              console.log("Description: " + attr.description);
-
-              spawned.push(state.process); // keep track of all spawned processes
-
               state.process.on("spawn", () => {
-                console.log("> " + "Spawned");
+                log("CLI Started");
                 state.idleEmitter = new emitter();
                 state.pinger = new Pinger(
                   "idleTimer",
@@ -132,51 +168,43 @@ const runTest = (testName: string) => {
                   },
                   1000
                 );
+                state.timeout = state.timeoutTime
+                  ? setTimeout(() => {
+                      log("CLI Run timeout expired. Force quitting.");
+                      state.process.kill("SIGINT");
+                      state.timeout = null;
+                    }, attr.timeout)
+                  : null;
               });
-
               state.process.stdout.on("data", (data: Buffer) => {
                 state.output.push(data.toString());
                 state.secondsIdle = 0;
               });
-
               state.process.stderr.on("data", (data: Buffer) => {
                 state.errors.push(data.toString());
                 state.secondsIdle = 0;
               });
-
               state.process.on("close", (code: number, signal: string) => {
-                if (state.timeout) {
-                  clearTimeout(state.timeout);
-                  state.timeout = null;
-                }
-                if (state.pinger != null) {
-                  state.pinger.done();
-                }
                 if (code) {
-                  console.log("> " + `child process closed with code ${code}`);
+                  log(`child process closed with code ${code}`);
                 }
                 if (signal) {
-                  console.log(
-                    "> " +
-                      `child process terminated due to receipt of signal ${signal}`
+                  log(
+                    `child process terminated due to receipt of signal ${signal}`
                   );
                 }
               });
-
               state.process.on("exit", (code: number) => {
-                if (state.timeout) {
-                  clearTimeout(state.timeout);
-                  state.timeout = null;
-                }
+                clearTimers(state);
                 if (code) {
-                  console.log("> " + `child process exited with code ${code}`);
+                  log(`child process exited with code ${code}`);
                 }
               });
             },
             stopped: () => {
               return new Promise(function (resolve) {
                 if (!state.process) {
-                  console.error(chalk.red("Test has not started."));
+                  logError("CLI has not started.");
                   resolve(0);
                 } else if (state.process.exitCode != null) {
                   resolve(state.process.exitCode);
@@ -188,19 +216,18 @@ const runTest = (testName: string) => {
               });
             },
             forceStop: () => {
-              if (state.process) {
+              if (state.process && state.process.exitCode == null) {
+                log("Passing SIGINT to process");
                 state.process.kill("SIGINT");
               } else {
-                console.error(
-                  chalk.red("Test has not started, nothing to force stop")
-                );
+                logError("CLI not running, nothing to force stop");
               }
             },
             log: (message: string) => {
-              console.log(chalk.blue("[" + state.name + "] ") + message);
+              log("(" + state.name + ") " + message);
             },
             error: (message: string) => {
-              console.error(chalk.blue("[" + state.name + "] ") + message);
+              logError("(" + state.name + ") " + message);
             },
             sleep: (ms: number) => {
               return new Promise((resolve) => setTimeout(resolve, ms));
@@ -209,9 +236,7 @@ const runTest = (testName: string) => {
               // wait number of seconds since last stdout or stderr
               return new Promise(function (resolve) {
                 if (!state.process) {
-                  console.error(
-                    chalk.red("Test has not started, nothing to wait for.")
-                  );
+                  logError("Test has not started, nothing to wait for.");
                   resolve(0);
                   return;
                 }
@@ -248,9 +273,7 @@ const runTest = (testName: string) => {
               };
               return new Promise(function (resolve) {
                 if (!state.process) {
-                  console.error(
-                    chalk.red("Test has not started, no output to monitor.")
-                  );
+                  logError("Test has not started, no output to monitor.");
                   resolve(0);
                   return;
                 }
@@ -268,31 +291,23 @@ const runTest = (testName: string) => {
           };
         }
       );
-      resolve("success");
+      testState.result = result;
+      resolve(testState);
     } catch (error) {
-      reject(error);
-    } finally {
-      spawned.forEach((p: any) => {
-        if (p.exitCode == null) {
-          // remove all listeners and exit
-          p.removeAllListeners("exit");
-          p.removeAllListeners("close");
-          p.removeAllListeners("spawn");
-          p.removeAllListeners("data");
-          p.kill("SIGINT");
-        }
-      });
+      testState.result = error;
+      reject(testState);
     }
   });
 };
 
 tests.forEach((testName: string) => {
   runTest(testName)
-    .then(() => {
-      console.log(chalk.green.bold("> Test Run Succeeded."));
+    .then((testState: any) => {
+      cleanupTest(testState);
+      log("Test Succeeded");
     })
-    .catch((error) => {
-      console.error(chalk.red.bold("> Test Run Failed: "));
-      console.error(chalk.red.bold(error));
+    .catch((testState: any) => {
+      cleanupTest(testState);
+      logError("Test Failed");
     });
 });

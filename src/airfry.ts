@@ -259,8 +259,9 @@ export class AirFry {
     }
   }
   protected loadCache(): void {
-    if (fs.existsSync(this.cacheDir + "/cache.json")) {
-      let rawdata = fs.readFileSync(this.cacheDir + "/cache.json");
+    const p = fspath.resolve(this.cacheDir);
+    if (fs.existsSync(p + "/cache.json")) {
+      let rawdata = fs.readFileSync(p + "/cache.json");
       if (rawdata && rawdata.length > 0) {
         this.state.cache = JSON.parse(rawdata.toString());
       }
@@ -269,13 +270,14 @@ export class AirFry {
 
   // call before exiting
   public storeCache(): void {
+    const p = fspath.resolve(this.cacheDir);
     let data = JSON.stringify(this.state.cache);
     if (data) {
       if (!fs.existsSync(this.cacheDir)) {
-        console.log(chalk.green("Making cache dir: " + this.cacheDir));
+        console.log(chalk.green("Making cache dir: " + p));
         fs.mkdirSync(this.cacheDir, { recursive: true });
       }
-      console.log(chalk.green("Writing cache"));
+      console.log(chalk.green("Writing cache: " + p + "/cache.json"));
       fs.writeFileSync(this.cacheDir + "/cache.json", data);
     }
   }
@@ -561,6 +563,9 @@ export class AirFry {
           // found a generate script -> run it
           const generateSuccess = (response: GeneratorResponse) => {
             pinger.done();
+            console.log(
+              chalk.yellowBright("Generator Resolved: " + generateData.name)
+            );
             // callback on generate script complete
             const generate = response.generate;
             me.processGeneratorResponse(
