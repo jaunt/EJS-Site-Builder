@@ -6,6 +6,7 @@ import fspath from "path";
 const { spawn } = require("child_process");
 
 import { Pinger } from "./shared";
+import { loadFiles } from "nconf";
 
 var emitter = require("events").EventEmitter;
 
@@ -152,6 +153,7 @@ const runTest = (testName: string) => {
                 );
                 return;
               }
+              log("Starting CLI...");
               state.process = spawn("node", [cmd, ...args], {
                 stdio: ["pipe", "pipe", "pipe"],
                 shell: true,
@@ -207,9 +209,12 @@ const runTest = (testName: string) => {
                   logError("CLI has not started.");
                   resolve(0);
                 } else if (state.process.exitCode != null) {
+                  log("CLI is already stopped");
                   resolve(state.process.exitCode);
                 } else {
+                  log("Waiting for CLI to stop on its own.");
                   state.process.on("exit", () => {
+                    log("CLI stopped on its own.");
                     resolve(state.process.exitCode);
                   });
                 }
@@ -230,6 +235,7 @@ const runTest = (testName: string) => {
               logError("(" + state.name + ") " + message);
             },
             sleep: (ms: number) => {
+              log("Sleeping for " + ms + "ms");
               return new Promise((resolve) => setTimeout(resolve, ms));
             },
             waitUntilOutputIdleSeconds: (seconds: Number) => {
@@ -241,10 +247,15 @@ const runTest = (testName: string) => {
                   return;
                 }
                 if (state.secondsIdle >= seconds) {
+                  log(
+                    "Output has already been idle for " + seconds + " seconds."
+                  );
                   resolve(state.secondsIdle);
                 } else {
+                  log("Waiting for idle seconds " + seconds);
                   state.idleEmitter.on("tick", function (seconds: number) {
                     if (state.secondsIdle >= seconds) {
+                      log("Output has been idle for " + seconds + " seconds.");
                       resolve(state.secondsIdle);
                     }
                   });
@@ -278,10 +289,13 @@ const runTest = (testName: string) => {
                   return;
                 }
                 if (_outIncludes(search)) {
+                  log("Output already includes " + search);
                   resolve(search);
                 } else {
+                  log("Waiting for output to include: " + search);
                   state.process.stdout.on("data", (data: Buffer) => {
                     if (_outIncludes(search)) {
+                      log("Output now includes " + search);
                       resolve(search);
                     }
                   });
