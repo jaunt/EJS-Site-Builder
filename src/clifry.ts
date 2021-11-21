@@ -65,6 +65,7 @@ const runTest = (testName: string) => {
         process: any;
         errors: string[];
         output: string[];
+        findIndex: { [key: string]: number };
         name: string;
         description: string;
         timeout: NodeJS.Timeout | null;
@@ -78,6 +79,7 @@ const runTest = (testName: string) => {
           }),
           errors: [],
           output: [],
+          findIndex: {} as { string: number },
           name: attr.name || "",
           description: attr.name || "",
           timeout: attr.timeout
@@ -161,8 +163,24 @@ const runTest = (testName: string) => {
             return new Promise((resolve) => setTimeout(resolve, ms));
           },
           untilOutputIncludes: (search: string) => {
-            const _outIncludes = (search: string) =>
-              state.output.find((value) => value.includes(search));
+            // optimized so that we don't keep checking the entire
+            // recorded output every time.  Can be called multiple times before
+            // or after a search string is found.  to find the next time the
+            // search occurs
+            const _outIncludes = (search: string) => {
+              if (!state.findIndex[search]) {
+                state.findIndex[search] = 0;
+              }
+              if (state.findIndex[search] == state.output.length) return false;
+              const index = state.output
+                .slice(state.findIndex[search])
+                .findIndex((value) => value.includes(search));
+              state.findIndex[search] =
+                index == -1
+                  ? state.output.length
+                  : index + state.findIndex[search] + 1;
+              return index != -1;
+            };
             return new Promise(function (resolve) {
               if (_outIncludes(search)) {
                 resolve(search);

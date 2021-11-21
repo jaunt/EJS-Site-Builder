@@ -18,7 +18,6 @@ const test = (start) => {
       {
         name: "Advanced Test",
         description: "Run through all features.",
-        //timeout: 5000,
       },
       [
         "--input ./templates",
