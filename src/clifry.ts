@@ -318,10 +318,10 @@ tests.forEach((testName: string) => {
   runTest(testName)
     .then((testState: any) => {
       cleanupTest(testState);
-      log("Test Succeeded");
+      log("Test Resolved With:", testState.result);
     })
     .catch((testState: any) => {
       cleanupTest(testState);
-      logError("Test Failed");
+      logError("Test Rejected With:", testState.result);
     });
 });
