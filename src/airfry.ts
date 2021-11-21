@@ -839,32 +839,33 @@ export class AirFry {
   public processPreGenerate(): Promise<void> {
     const me = this;
     return new Promise(function (resolve, reject) {
-      let pinger = new Pinger(
-        "preGenerate",
-        (id: string) => {
-          console.log(
-            chalk.yellowBright("Waiting for generator to call resolve: " + id)
-          );
-        },
-        3000
-      );
-      const generateSuccess = (response: GeneratorResponse) => {
-        pinger.done();
-        me.state.globalData = response.global;
-        me.processGeneratorResponse(
-          response,
-          PRE_GENERATE_JS,
-          PRE_GENERATE_NAME
-        );
-        resolve();
-      };
       const g = me.inputDir + "/" + PRE_GENERATE_JS;
-      const generateError = (error: Error) => {
-        pinger.done();
-        me.chalkUpError(PRE_GENERATE_NAME, error);
-        reject(error);
-      };
       if (fs.existsSync(g)) {
+        let pinger = new Pinger(
+          "preGenerate",
+          (id: string) => {
+            console.log(
+              chalk.yellowBright("Waiting for generator to call resolve: " + id)
+            );
+          },
+          3000
+        );
+        const generateSuccess = (response: GeneratorResponse) => {
+          pinger.done();
+          me.state.globalData = response.global;
+          me.processGeneratorResponse(
+            response,
+            PRE_GENERATE_JS,
+            PRE_GENERATE_NAME
+          );
+          resolve();
+        };
+
+        const generateError = (error: Error) => {
+          pinger.done();
+          me.chalkUpError(PRE_GENERATE_NAME, error);
+          reject(error);
+        };
         const script = fs.readFileSync(g, "utf8");
         if (!me.state.cache[PRE_GENERATE_NAME]) {
           me.state.cache[PRE_GENERATE_NAME] = {};
@@ -898,31 +899,31 @@ export class AirFry {
   public processPostGenerate(): Promise<void> {
     const me = this;
     return new Promise(function (resolve, reject) {
-      let pinger = new Pinger(
-        "postGenerate",
-        (id: string) => {
-          console.log(
-            chalk.yellowBright("Waiting for generator to call resolve: " + id)
-          );
-        },
-        3000
-      );
-      const generateSuccess = (response: GeneratorResponse) => {
-        pinger.done();
-        me.processGeneratorResponse(
-          response,
-          POST_GENERATE_JS,
-          POST_GENERATE_NAME
-        );
-        resolve();
-      };
       const g = me.inputDir + "/" + POST_GENERATE_JS;
-      const generateError = (error: Error) => {
-        pinger.done();
-        me.chalkUpError(POST_GENERATE_NAME, error);
-        reject(error);
-      };
       if (fs.existsSync(g)) {
+        let pinger = new Pinger(
+          "postGenerate",
+          (id: string) => {
+            console.log(
+              chalk.yellowBright("Waiting for generator to call resolve: " + id)
+            );
+          },
+          3000
+        );
+        const generateSuccess = (response: GeneratorResponse) => {
+          pinger.done();
+          me.processGeneratorResponse(
+            response,
+            POST_GENERATE_JS,
+            POST_GENERATE_NAME
+          );
+          resolve();
+        };
+        const generateError = (error: Error) => {
+          pinger.done();
+          me.chalkUpError(POST_GENERATE_NAME, error);
+          reject(error);
+        };
         const script = fs.readFileSync(g, "utf8");
         const code =
           "((require, resolve, reject, output, log) =>  {" + script + "})";

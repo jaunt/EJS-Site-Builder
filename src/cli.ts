@@ -174,6 +174,7 @@ if (!watchOnly) {
         console.log(`All files written.  No-watch option ending program now.`);
         return;
       }
+      console.log(`All files written.  Watching for changes.`);
 
       const watcher = chokidar.watch([inputDir, dataDir], {
         ignored: /(^|[\/\\])\../, // ignore dotfiles

@@ -5,6 +5,10 @@ import fs from "fs";
 import fspath from "path";
 const { spawn } = require("child_process");
 
+import { Pinger } from "./shared";
+
+var emitter = require("events").EventEmitter;
+
 const version = "0.0.1"; // todo get version from git tag
 
 console.log(chalk.black.bgWhite.bold("\n CLI", chalk.white.bgBlue(" FRY ")));
@@ -65,136 +69,205 @@ const runTest = (testName: string) => {
         process: any;
         errors: string[];
         output: string[];
+        pinger: Pinger | null;
+        secondsIdle: number;
+        idleEmitter: any;
         findIndex: { [key: string]: number };
         name: string;
         description: string;
+        timeoutTime: number;
         timeout: NodeJS.Timeout | null;
       };
-      await test((attr: any, args: string[]) => {
-        const state: TesterState = {
-          process: spawn("node", [cmd, ...args], {
-            stdio: "pipe",
-            shell: true,
-            cwd: cwd,
-          }),
-          errors: [],
-          output: [],
-          findIndex: {} as { string: number },
-          name: attr.name || "",
-          description: attr.name || "",
-          timeout: attr.timeout
-            ? setTimeout(() => {
-                console.log("Test timeout expired. Force quitting CLI.");
-                state.process.kill("SIGINT");
-                state.timeout = null;
-              }, attr.timeout)
-            : null,
-        };
+      await test(
+        (
+          attr: {
+            name: string;
+            description: string;
+            args: string[];
+            timeout: number;
+          },
+          args: string[]
+        ) => {
+          const state: TesterState = {
+            process: null,
+            errors: [],
+            output: [],
+            pinger: null,
+            secondsIdle: 0,
+            idleEmitter: null,
+            findIndex: {} as { string: number },
+            name: attr.name || "",
+            description: attr.name || "",
+            timeoutTime: attr.timeout,
+            timeout: null,
+          };
+          return {
+            dir: cwd,
+            start: () => {
+              state.timeout = state.timeoutTime
+                ? setTimeout(() => {
+                    console.log("Test timeout expired. Force quitting CLI.");
+                    state.process.kill("SIGINT");
+                    state.timeout = null;
+                  }, attr.timeout)
+                : null;
+              state.process = spawn("node", [cmd, ...args], {
+                stdio: ["pipe", "pipe", "pipe"],
+                shell: true,
+                cwd: cwd,
+              });
+              console.log("Test Run Started: " + attr.name);
+              console.log("Description: " + attr.description);
 
-        console.log("Test Run Started: " + attr.name);
-        console.log("Description: " + attr.description);
+              spawned.push(state.process); // keep track of all spawned processes
 
-        spawned.push(state.process); // keep track of all spawned processes
+              state.process.on("spawn", () => {
+                console.log("> " + "Spawned");
+                state.idleEmitter = new emitter();
+                state.pinger = new Pinger(
+                  "idleTimer",
+                  (id: string) => {
+                    state.secondsIdle++;
+                    state.idleEmitter.emit("tick", state.secondsIdle);
+                  },
+                  1000
+                );
+              });
 
-        state.process.on("spawn", () => {
-          console.log("> " + "Spawned");
-        });
+              state.process.stdout.on("data", (data: Buffer) => {
+                state.output.push(data.toString());
+                state.secondsIdle = 0;
+              });
 
-        state.process.stdout.on("data", (data: Buffer) => {
-          state.output.push(data.toString());
-        });
+              state.process.stderr.on("data", (data: Buffer) => {
+                state.errors.push(data.toString());
+                state.secondsIdle = 0;
+              });
 
-        state.process.stderr.on("data", (data: Buffer) => {
-          state.errors.push(data.toString());
-        });
+              state.process.on("close", (code: number, signal: string) => {
+                if (state.timeout) {
+                  clearTimeout(state.timeout);
+                  state.timeout = null;
+                }
+                if (state.pinger != null) {
+                  state.pinger.done();
+                }
+                if (code) {
+                  console.log("> " + `child process closed with code ${code}`);
+                }
+                if (signal) {
+                  console.log(
+                    "> " +
+                      `child process terminated due to receipt of signal ${signal}`
+                  );
+                }
+              });
 
-        state.process.on("close", (code: number, signal: string) => {
-          if (state.timeout) {
-            clearTimeout(state.timeout);
-            state.timeout = null;
-          }
-          if (code) {
-            console.log("> " + `child process closed with code ${code}`);
-          }
-          if (signal) {
-            console.log(
-              "> " +
-                `child process terminated due to receipt of signal ${signal}`
-            );
-          }
-        });
-
-        state.process.on("exit", (code: number) => {
-          if (state.timeout) {
-            clearTimeout(state.timeout);
-            state.timeout = null;
-          }
-          if (code) {
-            console.log("> " + `child process exited with code ${code}`);
-          }
-        });
-
-        return {
-          dir: cwd,
-          stopped: () => {
-            return new Promise(function (resolve) {
-              if (state.process.exitCode != null) {
-                resolve(state.process.exitCode);
-              } else {
-                state.process.on("exit", () => {
+              state.process.on("exit", (code: number) => {
+                if (state.timeout) {
+                  clearTimeout(state.timeout);
+                  state.timeout = null;
+                }
+                if (code) {
+                  console.log("> " + `child process exited with code ${code}`);
+                }
+              });
+            },
+            stopped: () => {
+              return new Promise(function (resolve) {
+                if (!state.process) {
+                  console.error(chalk.red("Test has not started."));
+                  resolve(0);
+                } else if (state.process.exitCode != null) {
                   resolve(state.process.exitCode);
-                });
-              }
-            });
-          },
-          forceStop: () => {
-            state.process.kill("SIGINT");
-          },
-          log: (message: string) => {
-            console.log(chalk.blue("[" + state.name + "] ") + message);
-          },
-          error: (message: string) => {
-            console.error(chalk.blue("[" + state.name + "] ") + message);
-          },
-          writeFile: (file: string, data: string) => {
-            fs.writeFileSync(file, data);
-          },
-          sleep: (ms: number) => {
-            return new Promise((resolve) => setTimeout(resolve, ms));
-          },
-          untilOutputIncludes: (search: string) => {
-            // optimized so that we don't keep checking the entire
-            // recorded output every time.  Can be called multiple times before
-            // or after a search string is found.  to find the next time the
-            // search occurs
-            const _outIncludes = (search: string) => {
-              if (!state.findIndex[search]) {
-                state.findIndex[search] = 0;
-              }
-              if (state.findIndex[search] == state.output.length) return false;
-              const index = state.output
-                .slice(state.findIndex[search])
-                .findIndex((value) => value.includes(search));
-              state.findIndex[search] =
-                index == -1
-                  ? state.output.length
-                  : index + state.findIndex[search] + 1;
-              return index != -1;
-            };
-            return new Promise(function (resolve) {
-              if (_outIncludes(search)) {
-                resolve(search);
+                } else {
+                  state.process.on("exit", () => {
+                    resolve(state.process.exitCode);
+                  });
+                }
+              });
+            },
+            forceStop: () => {
+              if (state.process) {
+                state.process.kill("SIGINT");
               } else {
-                state.process.stdout.on("data", (data: Buffer) => {
-                  if (_outIncludes(search)) {
-                    resolve(search);
-                  }
-                });
+                console.error(
+                  chalk.red("Test has not started, nothing to force stop")
+                );
               }
-            });
-          },
-        };
-      });
+            },
+            log: (message: string) => {
+              console.log(chalk.blue("[" + state.name + "] ") + message);
+            },
+            error: (message: string) => {
+              console.error(chalk.blue("[" + state.name + "] ") + message);
+            },
+            sleep: (ms: number) => {
+              return new Promise((resolve) => setTimeout(resolve, ms));
+            },
+            waitUntilOutputIdleSeconds: (seconds: Number) => {
+              // wait number of seconds since last stdout or stderr
+              return new Promise(function (resolve) {
+                if (!state.process) {
+                  console.error(
+                    chalk.red("Test has not started, nothing to wait for.")
+                  );
+                  resolve(0);
+                  return;
+                }
+                if (state.secondsIdle >= seconds) {
+                  resolve(state.secondsIdle);
+                } else {
+                  state.idleEmitter.on("tick", function (seconds: number) {
+                    if (state.secondsIdle >= seconds) {
+                      resolve(state.secondsIdle);
+                    }
+                  });
+                }
+              });
+            },
+            untilOutputIncludes: (search: string) => {
+              // optimized so that we don't keep checking the entire
+              // recorded output every time.  Can be called multiple times before
+              // or after a search string is found.  to find the next time the
+              // search occurs
+              const _outIncludes = (search: string) => {
+                if (!state.findIndex[search]) {
+                  state.findIndex[search] = 0;
+                }
+                if (state.findIndex[search] == state.output.length)
+                  return false;
+                const index = state.output
+                  .slice(state.findIndex[search])
+                  .findIndex((value) => value.includes(search));
+                state.findIndex[search] =
+                  index == -1
+                    ? state.output.length
+                    : index + state.findIndex[search] + 1;
+                return index != -1;
+              };
+              return new Promise(function (resolve) {
+                if (!state.process) {
+                  console.error(
+                    chalk.red("Test has not started, no output to monitor.")
+                  );
+                  resolve(0);
+                  return;
+                }
+                if (_outIncludes(search)) {
+                  resolve(search);
+                } else {
+                  state.process.stdout.on("data", (data: Buffer) => {
+                    if (_outIncludes(search)) {
+                      resolve(search);
+                    }
+                  });
+                }
+              });
+            },
+          };
+        }
+      );
       resolve("success");
     } catch (error) {
       reject(error);
