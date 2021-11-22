@@ -1,14 +1,14 @@
 <div class="<%= className %>"><%= text %></div>
 <div><%= global.date %></div>
 <% if (fromPage) { %>
-<div>My parents are special: <%= fromPage %></div>
+<div>My parents are very special: <%= fromPage %></div>
 <% } %>
 
 <script lib>
   // anything here will be written to "/js/widgets/label.js"
   function count(className) {
     var elements = document.getElementsByClassName("className");
-    console.log("lables used: " + elements.length);
+    console.log("the lables used: " + elements.length);
   }
   export {
     count

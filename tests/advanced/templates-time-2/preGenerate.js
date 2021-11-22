@@ -18,7 +18,7 @@ const now = "2021-nov-15";
 const version = 1.4;
 
 const toLowerCase = function (text) {
-  return text.toLowerCase() + " hello";
+  return text.toLowerCase() + " hellos";
 };
 
 resolve({

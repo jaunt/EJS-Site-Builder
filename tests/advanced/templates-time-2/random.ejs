@@ -3,11 +3,11 @@ generate: /random/*
 wrapper: wrappers/alternate
 ---
 
-<div><%- myData %></div>
+<div>s <%- myData %></div>
 
 <script generate>
   // test some async generation
-  const toGenerate = 3;
+  const toGenerate = 5;
 
   const pages = [];
 
@@ -27,7 +27,7 @@ wrapper: wrappers/alternate
       pages.push({
         path: "page" + i.toString(),
         data: {
-          myData: "hello " + i,
+          myData: "hello 2" + i,
           title: i.toString(),
         },
       });

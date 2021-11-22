@@ -963,14 +963,23 @@ export class AirFry {
       // has changed in case it can be efficient
       this.cueGeneration(pageName, dependency);
     }
-    this.generatePages()
-      .then(() => {
-        console.log(chalk.green("Dependency Updates Complete."));
-      })
-      .catch((error) => {
-        console.log(chalk.red("Dependency Updates Failed."));
-        console.log(chalk.red(error));
-      });
+    const toGenerate = Object.values(this.state.toGenerate);
+    if (toGenerate.length) {
+      this.generatePages()
+        .then(() => {
+          console.log(chalk.green("Dependency Updates Complete."));
+          return this.processPostGenerate();
+        })
+        .then(() => {
+          console.log(chalk.green("Running post generate script."));
+        })
+        .catch((error) => {
+          console.log(chalk.red("Dependency Updates Failed."));
+          console.log(chalk.red(error));
+        });
+    } else {
+      console.log(chalk.green("No changes to generated pages."));
+    }
   }
 
   /// -----------------------------------------------------------------------------
@@ -1019,6 +1028,12 @@ export class AirFry {
     this.updateDeps(deps);
   }
 
+  /// -----------------------------------------------------------------------------
+  /// updatGlobalDeps
+  ///
+  /// If the global data changed, anything that depended
+  /// on global data needs to be updated
+  /// -----------------------------------------------------------------------------
   updatGlobalDeps(): void {
     console.log(chalk.green("Update Triggered by preGenerate.js change."));
     this.updateDeps(this.state.globalDeps);

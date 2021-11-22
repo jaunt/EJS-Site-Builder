@@ -15,7 +15,7 @@
 // site: list of json serializable objects which will created as json files
 //            for the purposes of loading in to the web site's runtime javascript code
 const now = "2021-nov-15";
-const version = 1.4;
+const version = 1.5;
 
 const toLowerCase = function (text) {
   return text.toLowerCase() + " hello";

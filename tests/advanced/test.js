@@ -82,18 +82,21 @@ const test = (CliFry) => {
       return;
     }
 
+    testRun.log("Time 0 Matched");
+
     // STEP 4, loop through time tests {
     //  copy time data-time-N and templates-time-N contents recursively into data and templates
     //  wait for settle
     //  copy output to output-time-N compare with expected-time-N
     // }
     for (let i = 1; i <= lastTest; i++) {
-      copyInputs(testRun.dir, importScripts);
+      copyInputs(testRun.dir, i);
       await testRun.waitUntilOutputIdleSeconds(5);
       if (!outputMatchesExpected(testRun.dir, i)) {
-        reject("Output does not match expected at time " + 0);
+        reject("Output does not match expected at time " + i);
         return;
       }
+      testRun.log("Time " + i + " Matched");
     }
 
     testRun.forceStop();

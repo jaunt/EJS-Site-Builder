@@ -24,6 +24,6 @@ all.sort((a, b) => a.page.localeCompare(b.page));
 
 resolve({
   siteFiles: {
-    "multipage.json": all,
+    "multipage2.json": all,
   },
 });

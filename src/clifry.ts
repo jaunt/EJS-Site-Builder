@@ -253,10 +253,10 @@ const runTest = (testName: string) => {
                   resolve(state.secondsIdle);
                 } else {
                   log("Waiting for idle seconds " + seconds);
-                  state.idleEmitter.on("tick", function (seconds: number) {
-                    if (state.secondsIdle >= seconds) {
-                      log("Output has been idle for " + seconds + " seconds.");
-                      resolve(state.secondsIdle);
+                  state.idleEmitter.on("tick", function (s: number) {
+                    if (s >= seconds) {
+                      log("Output has been idle for " + s + " seconds.");
+                      resolve(s);
                     }
                   });
                 }

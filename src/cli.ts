@@ -189,10 +189,6 @@ if (!watchOnly) {
       const getKind = (p: string) => {
         const checks = [
           {
-            kind: "template",
-            prefix: fspath.join(inputDir),
-          },
-          {
             kind: "data",
             prefix: fspath.join(dataDir),
           },
@@ -203,6 +199,10 @@ if (!watchOnly) {
           {
             kind: POST_GENERATE_NAME,
             prefix: fspath.join(inputDir, POST_GENERATE_JS),
+          },
+          {
+            kind: "template",
+            prefix: fspath.join(inputDir),
           },
         ];
         for (const check of checks) {
@@ -219,68 +219,63 @@ if (!watchOnly) {
         };
       };
 
+      const applyChange = (p: string) => {
+        const check = getKind(p);
+        if (check.kind == PRE_GENERATE_NAME) {
+          airfry
+            .processPreGenerate()
+            .then(() => {
+              console.log(
+                chalk.green("Pre Generate JS updated -- updating deps")
+              );
+              airfry.updatGlobalDeps();
+            })
+            .catch((error) => {
+              console.log(chalk.red("Pre Generate JS update error: "));
+              console.log(chalk.red(error));
+            });
+        } else if (check.kind == POST_GENERATE_NAME) {
+          airfry
+            .processPostGenerate()
+            .then(() => {
+              console.log(chalk.green("Post Generate JS updated"));
+            })
+            .catch((error) => {
+              console.log(chalk.red("Post Generate JS update error: "));
+              console.log(chalk.red(error));
+            });
+        } else if (check.kind == "template") {
+          // step 1. update the template itself,
+          airfry
+            .processTemplateFilesPromise(airfry.getTemplateFileName(check.name))
+            .then((updateList) => {
+              console.log(chalk.green("Template Updated: " + p));
+              // render it:
+              // step 2. ... then any other templates depending on it
+              airfry.updateTemplateDeps(updateList[0]);
+            })
+            .catch((error) => {
+              console.log(chalk.red("Template update error: "));
+              console.log(chalk.red(error));
+            });
+        } else if (check.kind == "data") {
+          const dataFileName = fspath.resolve(dataDir + "/" + check.name);
+          airfry.updateDataDeps(dataFileName);
+        }
+      };
+
       watcher
         .on("add", (p: string) => {
-          const check = getKind(p);
-          if (check.kind == PRE_GENERATE_NAME) {
-            airfry.updatGlobalDeps();
-          } else if (check.kind == "template") {
-            airfry.processTemplateFilesPromise(p).then(() => {
-              console.log(chalk.green("New file processed: " + p));
-            });
-          } else if (check.kind == "data") {
-            // if anyone was watching the file or entire data directory
-            const dataFileName = fspath.resolve(dataDir + "/" + check.name);
-            airfry.updateDataDeps(dataFileName);
-          }
+          applyChange(p);
         })
         .on("change", (p) => {
-          const check = getKind(p);
-          if (check.kind == PRE_GENERATE_NAME) {
-            airfry
-              .processPreGenerate()
-              .then(() => {
-                console.log(
-                  chalk.green("Pre Generate JS updated -- updating deps")
-                );
-                airfry.updatGlobalDeps();
-              })
-              .catch((error) => {
-                console.log(chalk.red("Pre Generate JS update error: "));
-                console.log(chalk.red(error));
-              });
-          } else if (check.kind == POST_GENERATE_NAME) {
-            airfry
-              .processPostGenerate()
-              .then(() => {
-                console.log(chalk.green("Post Generate JS updated"));
-              })
-              .catch((error) => {
-                console.log(chalk.red("Post Generate JS update error: "));
-                console.log(chalk.red(error));
-              });
-          } else if (check.kind == "template") {
-            // step 1. update the template itself,
-            airfry
-              .processTemplateFilesPromise(
-                airfry.getTemplateFileName(check.name)
-              )
-              .then((updateList) => {
-                console.log(chalk.green("Template Updated: " + p));
-                // render it:
-                // step 2. ... then any other templates depending on it
-                airfry.updateTemplateDeps(updateList[0]);
-              })
-              .catch((error) => {
-                console.log(chalk.red("Template update error: "));
-                console.log(chalk.red(error));
-              });
-          } else if (check.kind == "data") {
-            const dataFileName = fspath.resolve(dataDir + "/" + check.name);
-            airfry.updateDataDeps(dataFileName);
-          }
+          applyChange(p);
         })
-        .on("unlink", (path) => console.log(`File ${path} has been removed`))
+        .on("unlink", (p) => {
+          console.log(`${p} has been removed`);
+          // deleting dependencies will likely cause parents to complain!
+          applyChange(p);
+        })
         .on("unlinkDir", (path) =>
           console.log(`Directory ${path} has been removed`)
         );
