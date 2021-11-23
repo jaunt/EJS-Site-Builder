@@ -65,6 +65,10 @@ class Pinger {
       clearTimeout(this.timer);
     }
   }
+  restart() {
+    this.done();
+    this._startTimer();
+  }
 }
 
 export { isRelative, getAllFiles, Pinger };

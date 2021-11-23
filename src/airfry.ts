@@ -125,6 +125,7 @@ type AirFryData = {
   globalData: PageData;
   cache: Cache;
   outputData: OutputData;
+  errorCount: 0;
 };
 
 type fsFunc = (...args: any[]) => unknown;
@@ -162,7 +163,7 @@ export class AirFry {
     this.loadCache();
   }
 
-  state: AirFryData = {
+  private state: AirFryData = {
     generateScripts: {},
     entryScripts: {},
     templateDepTree: {},
@@ -181,7 +182,12 @@ export class AirFry {
       json: {},
       outData: {},
     },
+    errorCount: 0,
   };
+
+  getErrorCount() {
+    return this.state.errorCount;
+  }
 
   protected writeFileSafe(path: string, ...args: unknown[]) {
     safeOutputCheck(fs.writeFile, this.outputDir, path, ...args);
@@ -323,6 +329,7 @@ export class AirFry {
           }
         });
       } catch {
+        this.state.errorCount++;
         console.log(chalk.red(error.stack));
       }
     }
@@ -348,6 +355,7 @@ export class AirFry {
     this.state.outputData.entry[url] = p;
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
+        this.state.errorCount++;
         console.log(chalk.red("Error writting: " + p));
       } else {
         console.log(chalk.magenta("Wrote: " + p));
@@ -400,6 +408,7 @@ export class AirFry {
           writeData,
           (err: NodeJS.ErrnoException | null): void => {
             if (err) {
+              this.state.errorCount++;
               console.log(
                 chalk.red(
                   "Error writing template's siteFiles '" + name + "': '" + p
@@ -489,6 +498,7 @@ export class AirFry {
           }
         });
       } catch (error) {
+        me.state.errorCount++;
         console.log(
           chalk.red.bold(
             `Error rendering page: ${template}, template: ${current}, path: ${path}`
@@ -648,6 +658,7 @@ export class AirFry {
               me.scriptLogger.bind(null, generateData.name)
             );
           } catch (error: unknown) {
+            me.state.errorCount++;
             if (error instanceof Error) {
               generateError(error);
             } else {
@@ -669,8 +680,15 @@ export class AirFry {
   /// -----------------------------------------------------------------------------
   protected compileTemplate(source: string, name: TemplateName): void {
     // Pre compile ejs template
-    const fn = ejs.compile(source, { client: true });
-    this.state.templates[name] = fn;
+    try {
+      const fn = ejs.compile(source, { client: true });
+      this.state.templates[name] = fn;
+    } catch (error) {
+      this.state.errorCount++;
+      console.log(
+        chalk.red(`${(error as Error).message?.split("\n")[0]} in ${name}`)
+      );
+    }
   }
 
   /// -----------------------------------------------------------------------------
@@ -725,6 +743,7 @@ export class AirFry {
         stripped,
         (err: NodeJS.ErrnoException | null): void => {
           if (err) {
+            this.state.errorCount++;
             console.log(chalk.red(err));
           }
           console.log(chalk.cyan("Wrote: " + p));
@@ -761,13 +780,13 @@ export class AirFry {
     file: string | undefined = undefined
   ): Promise<string[]> {
     const me = this;
-
     return new Promise(function (resolve, reject) {
       let list: string[] = [];
       if (file == undefined) {
         try {
           list = getAllFiles(me.inputDir);
         } catch (error) {
+          me.state.errorCount++;
           console.log(chalk.red("Could not scan " + me.inputDir));
         }
       } else {
@@ -886,6 +905,7 @@ export class AirFry {
             me.scriptLogger.bind(null, PRE_GENERATE_NAME)
           );
         } catch (error) {
+          me.state.errorCount++;
           console.log(chalk.red(error));
           reject(error);
         }
@@ -925,6 +945,7 @@ export class AirFry {
           resolve();
         };
         const generateError = (error: Error) => {
+          me.state.errorCount++;
           pinger.done();
           me.chalkUpError(POST_GENERATE_NAME, error);
           reject(error);
@@ -941,6 +962,7 @@ export class AirFry {
             me.scriptLogger.bind(null, POST_GENERATE_NAME)
           );
         } catch (error) {
+          me.state.errorCount++;
           console.log(chalk.red(error));
           reject(error);
         }
@@ -974,6 +996,7 @@ export class AirFry {
           console.log(chalk.green("Running post generate script."));
         })
         .catch((error) => {
+          this.state.errorCount++;
           console.log(chalk.red("Dependency Updates Failed."));
           console.log(chalk.red(error));
         });

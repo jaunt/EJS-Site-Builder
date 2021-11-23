@@ -7,7 +7,7 @@ import chokidar from "chokidar";
 import nconf from "nconf";
 import process from "process";
 
-import { isRelative } from "./shared";
+import { isRelative, Pinger } from "./shared";
 import { exit } from "process";
 
 import {
@@ -170,10 +170,19 @@ if (!watchOnly) {
     .then(() => {
       // step 3. watch src directory
 
+      let errors = airfry.getErrorCount();
+
+      if (errors > 0) {
+        console.log(chalk.redBright.bold.bgWhite("Errors detected: " + errors));
+      } else {
+        console.log(chalk.green("Zero errors detected."));
+      }
+
       if (options.noWatch) {
         console.log(`All files written.  No-watch option ending program now.`);
         return;
       }
+
       console.log(`All files written.  Watching for changes.`);
 
       const watcher = chokidar.watch([inputDir, dataDir], {
@@ -185,6 +194,22 @@ if (!watchOnly) {
           pollInterval: 100,
         },
       });
+
+      let pinger = new Pinger(
+        "error scan",
+        (id: string) => {
+          const newCount = airfry.getErrorCount();
+          if (newCount > errors) {
+            console.log(
+              chalk.redBright.bold.bgWhite(
+                "New errors detected: " + (newCount - errors)
+              )
+            );
+            errors = newCount;
+          }
+        },
+        1000
+      );
 
       const getKind = (p: string) => {
         const checks = [
@@ -220,6 +245,7 @@ if (!watchOnly) {
       };
 
       const applyChange = (p: string) => {
+        pinger.restart();
         const check = getKind(p);
         if (check.kind == PRE_GENERATE_NAME) {
           airfry

@@ -240,6 +240,7 @@ const runTest = (testName: string) => {
             },
             waitUntilOutputIdleSeconds: (seconds: Number) => {
               // wait number of seconds since last stdout or stderr
+              state.secondsIdle = 0;
               return new Promise(function (resolve) {
                 if (!state.process) {
                   logError("Test has not started, nothing to wait for.");
@@ -308,6 +309,9 @@ const runTest = (testName: string) => {
       testState.result = result;
       resolve(testState);
     } catch (error) {
+      if (!testState) {
+        testState = {};
+      }
       testState.result = error;
       reject(testState);
     }

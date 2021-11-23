@@ -35,13 +35,10 @@ wrapper: wrappers/main
   // maybe we want post data as json to be injested by a javascript component...
   siteData = {};
   postData = []
-  posts.forEach((post) => {
-    postData.push({
-      path: post.path,
-      title: post.title,
-    });
-  });
-  siteData["posts/data.json"] = postData
+
+  siteData["posts/data.json"] = {
+    "Hello": "There"
+  }
 
   resolve({
     generate: posts,
