@@ -309,6 +309,7 @@ if (!watchOnly) {
               logError(error);
             })
             .finally(() => {
+              deps = {};
               const newCount = airfry.getErrorCount();
               if (newCount > errors) {
                 logError("New errors detected: " + (newCount - errors));

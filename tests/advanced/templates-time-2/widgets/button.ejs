@@ -4,6 +4,7 @@ foods: [grape, apple]
 ---
 <div class="<%= className %>"><%= text %></div>
 <div>My buttons are clicky at <%= fun %></div>
-<% for (food in foods) { %>
+<% for (food of foods) { %>
+<%= foods %>
 Fruit: <%= food %>
 <% } %>

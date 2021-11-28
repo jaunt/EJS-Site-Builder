@@ -22,12 +22,6 @@ const copyInputs = (testRun, time) => {
 };
 
 const outputMatchesExpected = (testRun, time) => {
-  const expectedDir = testRun.dir + "/expected-time-" + time;
-  if (!fs.existsSync(testRun.dir + "/expected-time-" + time)) {
-    // do something
-    testRun.error(expectedDir + " does not exist.");
-    return false;
-  }
   const outputDir = testRun.dir + "/output";
   if (!fs.existsSync(outputDir)) {
     // do something
@@ -40,6 +34,12 @@ const outputMatchesExpected = (testRun, time) => {
     force: true,
   });
   fs.copySync(outputDir, testRun.dir + "/output-time-" + time);
+  const expectedDir = testRun.dir + "/expected-time-" + time;
+  if (!fs.existsSync(testRun.dir + "/expected-time-" + time)) {
+    // do something
+    testRun.error(expectedDir + " does not exist.");
+    return false;
+  }
   try {
     execFileSync("diff", [
       "--unified",
