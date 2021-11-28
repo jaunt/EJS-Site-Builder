@@ -6,7 +6,11 @@ import fm from "front-matter";
 import chalk from "chalk";
 import micromatch from "micromatch";
 
-import { getAllFiles, isRelative, Pinger } from "./shared";
+import { getAllFiles, isRelative, Pinger, makeLoggers } from "./shared";
+
+const loggers = makeLoggers("@ ");
+const log = loggers.log;
+const logError = loggers.logError;
 
 export const PRE_GENERATE_JS = "preGenerate.js";
 export const POST_GENERATE_JS = "postGenerate.js";
@@ -34,7 +38,7 @@ type Script = {
   [key: PageName]: Code;
 };
 
-type Dependencies = {
+export type Dependencies = {
   [key: PageName]: boolean;
 };
 
@@ -221,7 +225,7 @@ export class AirFry {
       files = micromatch(files, fixedGlobs);
     }
     if (files.length == 0) {
-      console.log(
+      logError(
         chalk.red(
           "Warning, " +
             source +
@@ -250,7 +254,7 @@ export class AirFry {
           if (!isNaN(expires)) {
             const now = new Date().getTime();
             if (now > expires) {
-              console.log(
+              log(
                 chalk.green("Expired " + pageName + " cache item: " + itemName)
               );
               delete pageCache[itemName];
@@ -280,10 +284,10 @@ export class AirFry {
     let data = JSON.stringify(this.state.cache);
     if (data) {
       if (!fs.existsSync(this.cacheDir)) {
-        console.log(chalk.green("Making cache dir: " + p));
+        log(chalk.green("Making cache dir: " + p));
         fs.mkdirSync(this.cacheDir, { recursive: true });
       }
-      console.log(chalk.green("Writing cache: " + p + "/cache.json"));
+      log(chalk.green("Writing cache: " + p + "/cache.json"));
       fs.writeFileSync(this.cacheDir + "/cache.json", data);
     }
   }
@@ -309,12 +313,12 @@ export class AirFry {
 
   protected chalkUpError(name: PageName, error: Error): void {
     // Show generate script errors nicely.
-    console.log("\nScript Error: " + chalk.bgBlack.red(name));
+    logError("\nScript Error: " + chalk.bgBlack.red(name));
     if (error.message) {
-      console.log(chalk.bgBlack.white(error.message));
+      log(chalk.bgBlack.white(error.message));
     }
     if (typeof error == "string") {
-      console.log(chalk.bgBlack.white(error));
+      log(chalk.bgBlack.white(error));
     }
     if (error.stack) {
       try {
@@ -323,14 +327,14 @@ export class AirFry {
         const script = this.state.generateScripts[name].split("\n");
         script.forEach((line, index) => {
           if (index == errorLine) {
-            console.log(chalk.bgBlack.red(line));
+            log(chalk.bgBlack.red(line));
           } else {
-            console.log(chalk.bgBlack.blue(line));
+            log(chalk.bgBlack.blue(line));
           }
         });
       } catch {
         this.state.errorCount++;
-        console.log(chalk.red(error.stack));
+        log(chalk.red(error.stack));
       }
     }
   }
@@ -338,10 +342,7 @@ export class AirFry {
   protected scriptLogger(name: PageName): void {
     // Format log messages from generate script.
     const args = Array.from(arguments);
-    console.log(
-      chalk.yellow(name) + chalk.white(": " + args[1]),
-      ...args.slice(2)
-    );
+    log(chalk.yellow(name) + chalk.white(": " + args[1]), ...args.slice(2));
   }
 
   protected writeEntryScript(script: string, url: string): void {
@@ -356,9 +357,9 @@ export class AirFry {
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
         this.state.errorCount++;
-        console.log(chalk.red("Error writting: " + p));
+        logError(chalk.red("Error writting: " + p));
       } else {
-        console.log(chalk.magenta("Wrote: " + p));
+        log(chalk.magenta("Wrote: " + p));
       }
     });
   }
@@ -409,13 +410,13 @@ export class AirFry {
           (err: NodeJS.ErrnoException | null): void => {
             if (err) {
               this.state.errorCount++;
-              console.log(
+              logError(
                 chalk.red(
                   "Error writing template's siteFiles '" + name + "': '" + p
                 )
               );
             } else {
-              console.log(chalk.cyanBright("Wrote: " + p));
+              log(chalk.cyanBright("Wrote: " + p));
             }
           }
         );
@@ -466,10 +467,12 @@ export class AirFry {
             me.state.templateDepTree[dependency] = {};
           }
           me.state.templateDepTree[dependency][template] = true;
+          // does dep template have frontmatter?
           return me.state.templates[dependency](
             {
               ...(passedData || {}),
               ...data,
+              ...(me.state.frontMatter[dependency] || {}),
             },
             undefined,
             renderInclude
@@ -493,18 +496,18 @@ export class AirFry {
           if (err) {
             reject(template);
           } else {
-            console.log(chalk.magenta("Wrote: " + p));
+            log(chalk.magenta("Wrote: " + p));
             resolve(template);
           }
         });
       } catch (error) {
         me.state.errorCount++;
-        console.log(
+        logError(
           chalk.red.bold(
             `Error rendering page: ${template}, template: ${current}, path: ${path}`
           )
         );
-        console.log(chalk.red(error));
+        logError(chalk.red(error));
         reject(template);
       }
     });
@@ -536,7 +539,7 @@ export class AirFry {
       };
 
       if (toGenerate.length == 0) {
-        console.log(chalk.yellow("\nNothing to do.  Will wait for changes."));
+        log(chalk.yellow("\nNothing to do.  Will wait for changes."));
         resolve();
         return;
       }
@@ -562,7 +565,7 @@ export class AirFry {
           let pinger = new Pinger(
             generateData.name,
             (id: string) => {
-              console.log(
+              log(
                 chalk.yellowBright(
                   "Waiting for generator to call resolve: " + id
                 )
@@ -572,10 +575,8 @@ export class AirFry {
           );
           // found a generate script -> run it
           const generateSuccess = (response: GeneratorResponse) => {
-            pinger.done();
-            console.log(
-              chalk.yellowBright("Generator Resolved: " + generateData.name)
-            );
+            pinger.stop();
+            log(chalk.yellowBright("Generator Resolved: " + generateData.name));
             // callback on generate script complete
             const generate = response.generate;
             me.processGeneratorResponse(
@@ -630,7 +631,7 @@ export class AirFry {
             }
           };
           const generateError = (error: Error) => {
-            pinger.done();
+            pinger.stop();
             me.chalkUpError(generateData.name, error);
             checkDone(generateData.name);
           };
@@ -662,7 +663,7 @@ export class AirFry {
             if (error instanceof Error) {
               generateError(error);
             } else {
-              console.log(chalk.red("Unknown error " + error));
+              logError(chalk.red("Unknown error " + error));
               generateError(new Error("unknown error"));
             }
           }
@@ -685,7 +686,7 @@ export class AirFry {
       this.state.templates[name] = fn;
     } catch (error) {
       this.state.errorCount++;
-      console.log(
+      logError(
         chalk.red(`${(error as Error).message?.split("\n")[0]} in ${name}`)
       );
     }
@@ -744,9 +745,9 @@ export class AirFry {
         (err: NodeJS.ErrnoException | null): void => {
           if (err) {
             this.state.errorCount++;
-            console.log(chalk.red(err));
+            logError(chalk.red(err));
           }
-          console.log(chalk.cyan("Wrote: " + p));
+          log(chalk.cyan("Wrote: " + p));
         }
       );
       return true;
@@ -787,7 +788,7 @@ export class AirFry {
           list = getAllFiles(me.inputDir);
         } catch (error) {
           me.state.errorCount++;
-          console.log(chalk.red("Could not scan " + me.inputDir));
+          logError(chalk.red("Could not scan " + me.inputDir));
         }
       } else {
         list = [file];
@@ -811,7 +812,7 @@ export class AirFry {
         return;
       }
 
-      console.log(chalk.green(`Processing ${pending} input files.`));
+      log(chalk.green(`Processing ${pending} input files.`));
 
       list.forEach((file: Path) => {
         const name = me.testTemplate(file);
@@ -868,14 +869,14 @@ export class AirFry {
         let pinger = new Pinger(
           "preGenerate",
           (id: string) => {
-            console.log(
+            log(
               chalk.yellowBright("Waiting for generator to call resolve: " + id)
             );
           },
           3000
         );
         const generateSuccess = (response: GeneratorResponse) => {
-          pinger.done();
+          pinger.stop();
           me.state.globalData = response.global;
           me.processGeneratorResponse(
             response,
@@ -886,7 +887,7 @@ export class AirFry {
         };
 
         const generateError = (error: Error) => {
-          pinger.done();
+          pinger.stop();
           me.chalkUpError(PRE_GENERATE_NAME, error);
           reject(error);
         };
@@ -906,11 +907,11 @@ export class AirFry {
           );
         } catch (error) {
           me.state.errorCount++;
-          console.log(chalk.red(error));
+          logError(chalk.red(error));
           reject(error);
         }
       } else {
-        console.log(chalk.blue(PRE_GENERATE_JS + " not found, skipping."));
+        log(chalk.blue(PRE_GENERATE_JS + " not found, skipping."));
         resolve(); // no global data
       }
     });
@@ -929,14 +930,14 @@ export class AirFry {
         let pinger = new Pinger(
           "postGenerate",
           (id: string) => {
-            console.log(
+            log(
               chalk.yellowBright("Waiting for generator to call resolve: " + id)
             );
           },
           3000
         );
         const generateSuccess = (response: GeneratorResponse) => {
-          pinger.done();
+          pinger.stop();
           me.processGeneratorResponse(
             response,
             POST_GENERATE_JS,
@@ -946,7 +947,7 @@ export class AirFry {
         };
         const generateError = (error: Error) => {
           me.state.errorCount++;
-          pinger.done();
+          pinger.stop();
           me.chalkUpError(POST_GENERATE_NAME, error);
           reject(error);
         };
@@ -963,11 +964,11 @@ export class AirFry {
           );
         } catch (error) {
           me.state.errorCount++;
-          console.log(chalk.red(error));
+          logError(chalk.red(error));
           reject(error);
         }
       } else {
-        console.log(chalk.blue(POST_GENERATE_JS + " not found, skipping."));
+        log(chalk.blue(POST_GENERATE_JS + " not found, skipping."));
         resolve(); // no global data
       }
     });
@@ -979,60 +980,63 @@ export class AirFry {
   /// When watching for file changes, we make sure to
   /// trigger any dependencies to regenerate.
   /// -----------------------------------------------------------------------------
-  protected updateDeps(dependencies: Dependencies, dependency = ""): void {
-    for (const pageName in dependencies) {
-      // tell the generator that this data file
-      // has changed in case it can be efficient
-      this.cueGeneration(pageName, dependency);
-    }
-    const toGenerate = Object.values(this.state.toGenerate);
-    if (toGenerate.length) {
-      this.generatePages()
-        .then(() => {
-          console.log(chalk.green("Dependency Updates Complete."));
-          return this.processPostGenerate();
-        })
-        .then(() => {
-          console.log(chalk.green("Running post generate script."));
-        })
-        .catch((error) => {
-          this.state.errorCount++;
-          console.log(chalk.red("Dependency Updates Failed."));
-          console.log(chalk.red(error));
-        });
-    } else {
-      console.log(chalk.green("No changes to generated pages."));
-    }
+  public updateDeps(
+    dependencies: Dependencies,
+    dependency = ""
+  ): Promise<void> {
+    const me = this;
+    return new Promise(function (resolve, reject) {
+      for (const pageName in dependencies) {
+        // tell the generator that this data file
+        // has changed in case it can be efficient
+        me.cueGeneration(pageName, dependency);
+      }
+      const toGenerate = Object.values(me.state.toGenerate);
+      if (toGenerate.length) {
+        me.generatePages()
+          .then(() => {
+            log(chalk.green("Dependency Updates Complete."));
+            return me.processPostGenerate();
+          })
+          .then(() => {
+            resolve();
+          })
+          .catch((error) => {
+            me.state.errorCount++;
+            logError(chalk.red("Dependency Updates Failed."), error);
+            reject(error);
+          });
+      }
+    });
   }
 
   /// -----------------------------------------------------------------------------
-  /// updateDataDeps
+  /// getDataDeps
   ///
   /// It's up to generator scripts to tell us which datafiles they'd like to watch
   /// -----------------------------------------------------------------------------
-  updateDataDeps(path: Path): void {
+  getDataDeps(path: Path): Dependencies {
     let dependencies;
     // intelligently find the dep
     // first look for direct match:
     dependencies = this.state.pathDepTree[path];
     if (dependencies) {
-      console.log(chalk.green("Update Triggered by: " + path));
+      log(chalk.green("Update Triggered by: " + path));
     } else if (!dependencies) {
       // check for wildcard match
       const wildDeps = Object.keys(this.state.wildDepTree);
       for (let pattern of wildDeps) {
         if (micromatch.isMatch(path, "**/" + pattern)) {
           dependencies = this.state.wildDepTree[pattern];
-          console.log(chalk.green("Update Triggered by: " + path));
+          log(chalk.green("Update Triggered by: " + path));
           break;
         }
       }
     }
-    if (dependencies) {
-      this.updateDeps(dependencies, path);
-    } else {
-      console.log(chalk.yellow("Info: No dependencies to update for " + path));
+    if (!dependencies) {
+      log(chalk.yellow("Info: No dependencies to update for " + path));
     }
+    return dependencies;
   }
 
   /// -----------------------------------------------------------------------------
@@ -1040,25 +1044,24 @@ export class AirFry {
   ///
   /// It's up to generator scripts to tell us which datafiles they'd like to watch
   /// -----------------------------------------------------------------------------
-  updateTemplateDeps(templateName: TemplateName) {
+  getTemplateDeps(templateName: TemplateName): Dependencies {
     // when a template updates, we need to check its dependencies and also trigger its own
     // generation if it is a page maker
-    const deps = {
+    const dependencies = {
       ...(this.state.templateDepTree[templateName] || {}),
       [templateName]: true,
     };
-    console.log(chalk.green("Update Triggered by: " + templateName));
-    this.updateDeps(deps);
+    return dependencies;
   }
 
   /// -----------------------------------------------------------------------------
-  /// updatGlobalDeps
+  /// getGlobalDeps
   ///
   /// If the global data changed, anything that depended
   /// on global data needs to be updated
   /// -----------------------------------------------------------------------------
-  updatGlobalDeps(): void {
+  getGlobalDeps(): Dependencies {
     console.log(chalk.green("Update Triggered by preGenerate.js change."));
-    this.updateDeps(this.state.globalDeps);
+    return this.state.globalDeps;
   }
 }

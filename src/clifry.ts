@@ -5,8 +5,7 @@ import fs from "fs";
 import fspath from "path";
 const { spawn } = require("child_process");
 
-import { Pinger } from "./shared";
-import { loadFiles } from "nconf";
+import { Pinger, makeLoggers } from "./shared";
 
 var emitter = require("events").EventEmitter;
 
@@ -15,19 +14,9 @@ const version = "0.0.1"; // todo get version from git tag
 console.log(chalk.black.bgWhite.bold("\n CLI", chalk.white.bgBlue(" FRY ")));
 console.log(chalk.blueBright("Version " + version + "\n"));
 
-const _formatLog = (useChalk = chalk.green, ...args: any) => {
-  for (let arg of args) {
-    let txt;
-    if (typeof arg === "string" || (arg as any) instanceof String) {
-      txt = arg;
-    } else {
-      txt = JSON.stringify(arg, null, 2);
-    }
-    console.log(useChalk("> " + chalk.bgWhite(arg)));
-  }
-};
-const log = _formatLog.bind(null, chalk.green);
-const logError = _formatLog.bind(null, chalk.red);
+const loggers = makeLoggers("# ", "!!! ", chalk.greenBright, chalk.redBright);
+const log = loggers.log;
+const logError = loggers.logError;
 
 const program = new Command()
   .option("-t, --tests [tests...]", "Test name or names.")
@@ -76,7 +65,7 @@ const clearTimers = (state: any) => {
     state.timeout = null;
   }
   if (state.pinger != null) {
-    state.pinger.done();
+    state.pinger.stop();
   }
 };
 

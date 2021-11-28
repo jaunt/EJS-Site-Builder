@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command, Option } from "commander";
+import { Command } from "commander";
 import fs from "fs";
 import fspath from "path";
 import chalk from "chalk";
@@ -7,7 +7,7 @@ import chokidar from "chokidar";
 import nconf from "nconf";
 import process from "process";
 
-import { isRelative, Pinger } from "./shared";
+import { isRelative, Pinger, makeLoggers } from "./shared";
 import { exit } from "process";
 
 import {
@@ -16,6 +16,7 @@ import {
   PRE_GENERATE_NAME,
   POST_GENERATE_JS,
   POST_GENERATE_NAME,
+  Dependencies,
 } from "./airfry";
 
 const version = "0.0.3"; // todo get version from git tag
@@ -24,6 +25,11 @@ const BAD_OPTIONS = 3;
 
 console.log(chalk.black.bgWhite.bold("\n Air", chalk.white.bgBlue(" Fry \n")));
 console.log(chalk.blueBright("Version " + version + "\n"));
+
+const loggers = makeLoggers("@ ");
+const log = loggers.log;
+const logError = loggers.logError;
+
 const program = new Command()
   .option("-i, --input <inputDir>", "input directory")
   .option("-d, --data <dataDir>", "data directory")
@@ -40,8 +46,8 @@ program.parse(process.argv);
 const options = program.opts();
 
 if (options.verbose) {
-  console.log("Options detected:");
-  console.log(options);
+  log("Options detected:");
+  log(options);
 }
 
 nconf.argv().env().file({ file: "./airfry.json" });
@@ -49,7 +55,7 @@ const optionsConfig = nconf.get("options") || {};
 
 const getOption = (opt: string, def: string): string => {
   if (options[opt] && optionsConfig[opt]) {
-    console.log(
+    log(
       chalk.yellow(
         "Warning, command line argument " +
           chalk.white(opt) +
@@ -60,7 +66,7 @@ const getOption = (opt: string, def: string): string => {
   let result = options[opt] || optionsConfig[opt];
   if (!result) {
     if (options.verbose) {
-      console.log(
+      log(
         chalk.yellow(
           "No option specified for " +
             chalk.white(opt) +
@@ -85,23 +91,21 @@ const watchOnly = getOption("watchOnly", "");
 
 if (!keepOutDir) {
   if (fs.existsSync(outputDir)) {
-    console.log(chalk.green("Clearing output dir: " + outputDir));
+    log("Clearing output dir: " + outputDir);
     fs.rmSync(outputDir, { recursive: true });
   }
 }
 
 if (watchOnly && noWatch) {
-  console.log(chalk.red("Can't both watch and not watch!  Exiting."));
+  logError("Can't both watch and not watch!  Exiting.");
   exit(BAD_OPTIONS);
 }
 
 const isOneOrTheOtherRelative = (a: string, b: string): Boolean => {
   const result = isRelative(a, b) || isRelative(b, a);
   if (result) {
-    console.log(
-      chalk.red(
-        "Directories must not contian each other: " + chalk.white(a + ", " + b)
-      )
+    logError(
+      "Directories must not contian each other: " + chalk.white(a + ", " + b)
     );
   }
   return result;
@@ -173,17 +177,17 @@ if (!watchOnly) {
       let errors = airfry.getErrorCount();
 
       if (errors > 0) {
-        console.log(chalk.redBright.bold.bgWhite("Errors detected: " + errors));
+        logError("Errors detected: " + errors);
       } else {
-        console.log(chalk.green("Zero errors detected."));
+        log("Zero errors detected.");
       }
 
       if (options.noWatch) {
-        console.log(`All files written.  No-watch option ending program now.`);
+        log(`All files written.  No-watch option ending program now.`);
         return;
       }
 
-      console.log(`All files written.  Watching for changes.`);
+      log(`All files written.  Watching for changes.`);
 
       const watcher = chokidar.watch([inputDir, dataDir], {
         ignored: /(^|[\/\\])\../, // ignore dotfiles
@@ -194,22 +198,6 @@ if (!watchOnly) {
           pollInterval: 100,
         },
       });
-
-      let pinger = new Pinger(
-        "error scan",
-        (id: string) => {
-          const newCount = airfry.getErrorCount();
-          if (newCount > errors) {
-            console.log(
-              chalk.redBright.bold.bgWhite(
-                "New errors detected: " + (newCount - errors)
-              )
-            );
-            errors = newCount;
-          }
-        },
-        1000
-      );
 
       const getKind = (p: string) => {
         const checks = [
@@ -244,69 +232,95 @@ if (!watchOnly) {
         };
       };
 
-      const applyChange = (p: string) => {
+      let pinger: Pinger;
+
+      let deps: Dependencies = {};
+
+      const queueChange = (p: string) => {
         pinger.restart();
         const check = getKind(p);
         if (check.kind == PRE_GENERATE_NAME) {
           airfry
             .processPreGenerate()
             .then(() => {
-              console.log(
-                chalk.green("Pre Generate JS updated -- updating deps")
-              );
-              airfry.updatGlobalDeps();
+              log("Pre Generate JS updated -- updating deps");
+              deps = { ...deps, ...airfry.getGlobalDeps() };
             })
             .catch((error) => {
-              console.log(chalk.red("Pre Generate JS update error: "));
-              console.log(chalk.red(error));
+              logError("Pre Generate JS update error: ", error);
             });
         } else if (check.kind == POST_GENERATE_NAME) {
           airfry
             .processPostGenerate()
             .then(() => {
-              console.log(chalk.green("Post Generate JS updated"));
+              log("Post Generate JS updated");
+              // nothing can depend on post generate
             })
             .catch((error) => {
-              console.log(chalk.red("Post Generate JS update error: "));
-              console.log(chalk.red(error));
+              logError("Post Generate JS update error: ");
+              log(error);
             });
         } else if (check.kind == "template") {
           // step 1. update the template itself,
           airfry
             .processTemplateFilesPromise(airfry.getTemplateFileName(check.name))
             .then((updateList) => {
-              console.log(chalk.green("Template Updated: " + p));
+              log("Template Updated: " + p);
               // render it:
               // step 2. ... then any other templates depending on it
-              airfry.updateTemplateDeps(updateList[0]);
+              deps = { ...deps, ...airfry.getTemplateDeps(updateList[0]) };
             })
             .catch((error) => {
-              console.log(chalk.red("Template update error: "));
-              console.log(chalk.red(error));
+              logError("Template update error: ", error);
             });
         } else if (check.kind == "data") {
+          // when it's data, we need to process separately for
+          // every file in case a generator can rebuild for a single file.
           const dataFileName = fspath.resolve(dataDir + "/" + check.name);
-          airfry.updateDataDeps(dataFileName);
+          const dataDeps = airfry.getDataDeps(dataFileName);
+          airfry.updateDeps(dataDeps, dataFileName);
         }
       };
 
       watcher
         .on("add", (p: string) => {
-          applyChange(p);
+          queueChange(p);
         })
         .on("change", (p) => {
-          applyChange(p);
+          queueChange(p);
         })
         .on("unlink", (p) => {
-          console.log(`${p} has been removed`);
+          log(`${p} has been removed`);
           // deleting dependencies will likely cause parents to complain!
-          applyChange(p);
+          queueChange(p);
         })
-        .on("unlinkDir", (path) =>
-          console.log(`Directory ${path} has been removed`)
-        );
+        .on("unlinkDir", (path) => log(`Directory ${path} has been removed`));
+
+      pinger = new Pinger(
+        "watcher",
+        (id: string) => {
+          pinger.stop();
+          airfry
+            .updateDeps({ ...deps })
+            .then(() => {
+              log("Dependencies updated.");
+            })
+            .catch((error) => {
+              logError(error);
+            })
+            .finally(() => {
+              const newCount = airfry.getErrorCount();
+              if (newCount > errors) {
+                logError("New errors detected: " + (newCount - errors));
+                errors = newCount;
+              }
+              pinger.restart();
+            });
+        },
+        250
+      );
     })
     .catch((error) => {
-      console.log(chalk.red(error));
+      logError(error);
     });
 }

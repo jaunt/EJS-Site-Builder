@@ -1,5 +1,6 @@
 import fs from "fs";
 import fspath from "path";
+import chalk from "chalk";
 
 /// ----------------------------------------------------------------------------
 /// Safety to prevent user from accidently
@@ -60,15 +61,38 @@ class Pinger {
       if (!this._done) this._startTimer();
     }, this.timeout);
   }
-  done() {
+  stop() {
     if (this.timer) {
       clearTimeout(this.timer);
     }
   }
   restart() {
-    this.done();
+    this.stop();
     this._startTimer();
   }
 }
 
-export { isRelative, getAllFiles, Pinger };
+const _formatLog = (prefix: string, useChalk = chalk.green, ...args: any) => {
+  for (let arg of args) {
+    let txt;
+    if (typeof arg === "string" || (arg as any) instanceof String) {
+      txt = arg;
+    } else {
+      txt = JSON.stringify(arg, null, 2);
+    }
+    console.log(useChalk(prefix + chalk.bgWhite(arg)));
+  }
+};
+const makeLoggers = (
+  prefix: string,
+  errorFlag: string = "[ERROR] ",
+  goodColor = chalk.green,
+  badColor = chalk.red
+) => {
+  return {
+    log: _formatLog.bind(null, prefix, goodColor),
+    logError: _formatLog.bind(null, prefix + errorFlag, badColor),
+  };
+};
+
+export { isRelative, getAllFiles, Pinger, makeLoggers };

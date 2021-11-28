@@ -1,6 +1,6 @@
 <div class="<%= className %>"><%= text %></div>
 <div><%= global.date %></div>
-<% if (fromPage) { %>
+<% if (typeof(fromPage)!="undefined") { %>
 <div>My parents are very special: <%= fromPage %></div>
 <% } %>
 

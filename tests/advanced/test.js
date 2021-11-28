@@ -90,7 +90,7 @@ const test = (CliFry) => {
     // STEP 4, wait for airfry to be done initial run.
     await testRun.untilOutputIncludes("Watching for changes");
     // and a bit in case file system is writing?
-    await testRun.sleep(1000);
+    await testRun.sleep(100);
 
     if (!outputMatchesExpected(testRun, 0)) {
       reject("Failed to match expected at time " + 0);
@@ -105,8 +105,9 @@ const test = (CliFry) => {
     //  copy output to output-time-N compare with expected-time-N
     // }
     for (let i = 1; i <= lastTest; i++) {
+      testRun.log("\n\nSTARTING SUBTEST " + i + "\n");
       copyInputs(testRun, i);
-      await testRun.waitUntilOutputIdleSeconds(3);
+      await testRun.waitUntilOutputIdleSeconds(2);
       if (!outputMatchesExpected(testRun, i)) {
         reject("Failed to match expected at time " + i);
         return;
@@ -115,7 +116,7 @@ const test = (CliFry) => {
     }
 
     testRun.forceStop();
-    await testRun.sleep(1000);
+    await testRun.stopped();
 
     resolve("success");
   });

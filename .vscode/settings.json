@@ -1,0 +1,6 @@
+{
+  "search.exclude": {
+    "lib/**/*.js": true,
+    "**/*.map": true
+  }
+}
