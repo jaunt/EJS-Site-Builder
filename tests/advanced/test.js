@@ -67,6 +67,7 @@ const test = (CliFry) => {
         name: "Advanced Test",
         description: "Run through all features.",
       },
+      // arguments
       [
         "--input ./templates",
         "--output ./output",
@@ -84,41 +85,45 @@ const test = (CliFry) => {
     // STEP 2, copy templates-time-0 and data-time-0 to data and templates
     copyInputs(testRun, 0);
 
-    // STEP 3, start AirFry
-    testRun.start();
+    try {
+      // STEP 3, start AirFry
+      await testRun.start(100);
 
-    // STEP 4, wait for airfry to be done initial run.
-    await testRun.untilOutputIncludes("Watching for changes");
-    // and a bit in case file system is writing?
-    await testRun.sleep(100);
+      // STEP 4, wait for airfry to be done initial run.
+      await testRun.untilStdoutIncludes("Watching for changes", 5000);
+      // and a bit in case file system is writing?
+      await testRun.sleep(100);
 
-    if (!outputMatchesExpected(testRun, 0)) {
-      reject("Failed to match expected at time " + 0);
-      return;
-    }
-
-    testRun.log("Time 0 Matched");
-
-    // STEP 4, loop through time tests {
-    //  copy time data-time-N and templates-time-N contents recursively into data and templates
-    //  wait for settle
-    //  copy output to output-time-N compare with expected-time-N
-    // }
-    for (let i = 1; i <= lastTest; i++) {
-      testRun.log("\n\nSTARTING SUBTEST " + i + "\n");
-      copyInputs(testRun, i);
-      await testRun.waitUntilOutputIdleSeconds(2);
-      if (!outputMatchesExpected(testRun, i)) {
-        reject("Failed to match expected at time " + i);
+      if (!outputMatchesExpected(testRun, 0)) {
+        reject("Failed to match expected at time " + 0);
         return;
       }
-      testRun.log("Time " + i + " Matched");
+
+      testRun.log("Time 0 Matched");
+
+      // STEP 4, loop through time tests {
+      //  copy time data-time-N and templates-time-N contents recursively into data and templates
+      //  wait for settle
+      //  copy output to output-time-N compare with expected-time-N
+      // }
+      for (let i = 1; i <= lastTest; i++) {
+        testRun.log("\n\nSTARTING SUBTEST " + i + "\n");
+        copyInputs(testRun, i);
+        await testRun.untilOutputIdleSeconds(2, 5000);
+        if (!outputMatchesExpected(testRun, i)) {
+          reject("Failed to match expected at time " + i);
+          return;
+        }
+        testRun.log("Time " + i + " Matched");
+      }
+
+      testRun.forceStop();
+      await testRun.untilStopped(3000);
+
+      resolve("success");
+    } catch (error) {
+      reject("Advanced test failed.");
     }
-
-    testRun.forceStop();
-    await testRun.stopped();
-
-    resolve("success");
   });
 };
 

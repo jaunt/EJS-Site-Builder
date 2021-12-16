@@ -1,7 +1,7 @@
 {
-  "name": "airfry",
-  "version": "1.0.0",
-  "description": "Javascript powered SSG.  Fast, healthy, delicious.",
+  "name": "@danglingdev/airfry",
+  "version": "0.0.1",
+  "description": "Ultra Effecient Static Site Generator.  Fast, healthy, delicious.",
   "main": "./lib/index.js",
   "scripts": {
     "test": "node lib/clifry.js -a",
@@ -29,6 +29,8 @@
     "typescript": "^4.4.4"
   },
   "dependencies": {
+    "@danglingdev/clifry": "^0.0.5",
+    "@danglingdev/shared-ts": "^0.0.5",
     "@types/ejs": "^3.1.0",
     "@types/micromatch": "^4.0.2",
     "@types/nconf": "^0.10.1",

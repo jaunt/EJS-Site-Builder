@@ -6,7 +6,12 @@ import fm from "front-matter";
 import chalk from "chalk";
 import micromatch from "micromatch";
 
-import { getAllFiles, isRelative, Pinger, makeLoggers } from "./shared";
+import {
+  getAllFiles,
+  isRelative,
+  Pinger,
+  makeLoggers,
+} from "@danglingdev/shared-ts";
 
 const loggers = makeLoggers("@ ");
 const log = loggers.log;

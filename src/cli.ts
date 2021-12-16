@@ -7,7 +7,7 @@ import chokidar from "chokidar";
 import nconf from "nconf";
 import process from "process";
 
-import { isRelative, Pinger, makeLoggers } from "./shared";
+import { isRelative, Pinger, makeLoggers } from "@danglingdev/shared-ts";
 import { exit } from "process";
 
 import {

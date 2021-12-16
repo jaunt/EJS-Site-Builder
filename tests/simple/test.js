@@ -9,14 +9,15 @@ const diff2htmlstyle = `
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
 `;
 
-const test = (start) => {
+const test = (CliFry) => {
   return new Promise(async function (resolve, reject) {
-    const testRun = start(
+    const testRun = CliFry(
       {
         name: "Simple Test 1",
         description: "Make sure a simple template outputs properly.",
         timeout: 5000,
       },
+      // arguments
       [
         "--input ./templates",
         "--output ./output",
@@ -25,35 +26,43 @@ const test = (start) => {
       ]
     );
 
-    testRun.log("hello");
+    try {
+      await testRun.start(100);
+      await testRun.untilStopped(5000);
 
-    const exitCode = await testRun.stopped();
-
-    // diff -r /home/steve/projects/airfryts/tests/simple/output/index.html /home/steve/projects/airfryts/tests/simple/expected/index.html\n1c1\n< This is to test the most basic page generation: test 1\n\\ No newline at end of file\n---\n> This is to test the most basic page generation: test 12\n
-    if (exitCode) {
-      // for this test, the cli must end gracefully
-      reject("Airfry ended unexpectedly");
-    } else {
-      //const cmd = "diff
-      const child = execFile(
-        "diff",
-        ["--unified", "-r", testRun.dir + "/output", testRun.dir + "/expected"],
-        (error, stdout) => {
-          if (error) {
-            const cmdLength = child.spawnargs.join(" ").length;
-            const output = stdout.slice(cmdLength);
-            testRun.log(output);
-            const diffHtml = Diff2html.html(output, { drawFileList: true });
-            testRun.writeFile(
-              testRun.dir + "/diff.html",
-              diff2htmlstyle + "\n" + diffHtml
-            );
-            reject("Output does not match expected");
-          } else {
-            resolve();
+      // diff -r /home/steve/projects/airfryts/tests/simple/output/index.html /home/steve/projects/airfryts/tests/simple/expected/index.html\n1c1\n< This is to test the most basic page generation: test 1\n\\ No newline at end of file\n---\n> This is to test the most basic page generation: test 12\n
+      if (exitCode) {
+        // for this test, the cli must end gracefully
+        reject("Airfry ended unexpectedly");
+      } else {
+        //const cmd = "diff
+        const child = execFile(
+          "diff",
+          [
+            "--unified",
+            "-r",
+            testRun.dir + "/output",
+            testRun.dir + "/expected",
+          ],
+          (error, stdout) => {
+            if (error) {
+              const cmdLength = child.spawnargs.join(" ").length;
+              const output = stdout.slice(cmdLength);
+              testRun.log(output);
+              const diffHtml = Diff2html.html(output, { drawFileList: true });
+              testRun.writeFile(
+                testRun.dir + "/diff.html",
+                diff2htmlstyle + "\n" + diffHtml
+              );
+              reject("Output does not match expected");
+            } else {
+              resolve();
+            }
           }
-        }
-      );
+        );
+      }
+    } catch (error) {
+      reject("Simple test failed.");
     }
   });
 };
