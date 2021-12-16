@@ -4,9 +4,9 @@
   "description": "Ultra Effecient Static Site Generator.  Fast, healthy, delicious.",
   "main": "./lib/index.js",
   "scripts": {
+    "prebuild": "node -p \"'export const LIB_VERSION = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
     "test": "node lib/clifry.js -a",
     "start": "node lib/cli.js",
-    "nodewatch": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/cli.ts",
     "build": "tsc"
   },
   "repository": {
@@ -21,7 +21,7 @@
   "bugs": {
     "url": "https://github.com/jaunt/airfry/issues"
   },
-  "homepage": "https://github.com/jauint/airfry#readme",
+  "homepage": "https://github.com/jaunt/airfry#readme",
   "devDependencies": {
     "@types/node": "^16.11.6",
     "nodemon": "^2.0.14",
@@ -46,6 +46,6 @@
     "nconf": "^0.11.3"
   },
   "bin": {
-    "airfry": "./lib/index.js"
+    "airfry": "./lib/cli.js"
   }
 }

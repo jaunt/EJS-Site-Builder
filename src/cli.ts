@@ -17,14 +17,14 @@ import {
   POST_GENERATE_JS,
   POST_GENERATE_NAME,
   Dependencies,
-} from "./airfry";
+} from "./api";
 
-const version = "0.0.3"; // todo get version from git tag
+import { LIB_VERSION } from "./version";
 
 const BAD_OPTIONS = 3;
 
 console.log(chalk.black.bgWhite.bold("\n Air", chalk.white.bgBlue(" Fry \n")));
-console.log(chalk.blueBright("Version " + version + "\n"));
+console.log(chalk.blueBright("Version " + LIB_VERSION + "\n"));
 
 const loggers = makeLoggers("@ ");
 const log = loggers.log;
@@ -41,7 +41,7 @@ const program = new Command()
   .option("-cc, --clearCache", "clear cache on start")
   .option("-v, --verbose", "logging verbosity");
 
-program.version(version);
+program.version(LIB_VERSION);
 program.parse(process.argv);
 const options = program.opts();
 
