@@ -53,7 +53,10 @@ const outputMatchesExpected = (testRun, time) => {
     const diffHtml = Diff2html.html(out, {
       drawFileList: true,
     });
-    fs.writeFile(testRun.dir + "/diff.html", diff2htmlstyle + "\n" + diffHtml);
+    fs.writeFileSync(
+      testRun.dir + "/diff.html",
+      diff2htmlstyle + "\n" + diffHtml
+    );
     return false;
   }
 };
@@ -69,10 +72,14 @@ const test = (CliFry) => {
       },
       // arguments
       [
-        "--input ./templates",
-        "--output ./output",
-        "--data ./data",
-        "--cache ./cache",
+        "--input",
+        "./templates",
+        "--output",
+        "./output",
+        "--data",
+        "./data",
+        "--cache",
+        "./cache",
       ]
     );
 

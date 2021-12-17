@@ -1,5 +1,6 @@
 const Diff2html = require("diff2html");
-const { execFile } = require("child_process");
+const { execFileSync } = require("child_process");
+const fs = require("fs-extra");
 
 const diff2htmlstyle = `
 <!-- CSS -->
@@ -19,50 +20,50 @@ const test = (CliFry) => {
       },
       // arguments
       [
-        "--input ./templates",
-        "--output ./output",
-        "--cache ./cache",
+        "--input",
+        "./templates",
+        "--output",
+        "./output",
+        "--cache",
+        "./cache",
         "--noWatch",
       ]
     );
 
     try {
       await testRun.start(100);
+      testRun.log("untilstopped");
       await testRun.untilStopped(5000);
-
-      // diff -r /home/steve/projects/airfryts/tests/simple/output/index.html /home/steve/projects/airfryts/tests/simple/expected/index.html\n1c1\n< This is to test the most basic page generation: test 1\n\\ No newline at end of file\n---\n> This is to test the most basic page generation: test 12\n
-      if (exitCode) {
-        // for this test, the cli must end gracefully
-        reject("Airfry ended unexpectedly");
-      } else {
-        //const cmd = "diff
-        const child = execFile(
-          "diff",
-          [
-            "--unified",
-            "-r",
-            testRun.dir + "/output",
-            testRun.dir + "/expected",
-          ],
-          (error, stdout) => {
-            if (error) {
-              const cmdLength = child.spawnargs.join(" ").length;
-              const output = stdout.slice(cmdLength);
-              testRun.log(output);
-              const diffHtml = Diff2html.html(output, { drawFileList: true });
-              testRun.writeFile(
-                testRun.dir + "/diff.html",
-                diff2htmlstyle + "\n" + diffHtml
-              );
-              reject("Output does not match expected");
-            } else {
-              resolve();
-            }
-          }
-        );
+      testRun.log("stopped");
+      try {
+        testRun.log("dif");
+        execFileSync("diff", [
+          "--unified",
+          "-r",
+          testRun.dir + "/output/",
+          testRun.dir + "/expected/",
+        ]);
+        resolve("success");
+      } catch (error) {
+        testRun.log(error);
+        const out = error.stdout.toString();
+        testRun.log(out);
+        const diffHtml = Diff2html.html(out, {
+          drawFileList: true,
+        });
+        testRun.log(testRun.dir + "/diff.html");
+        try {
+          fs.writeFileSync(
+            testRun.dir + "/diff.html",
+            diff2htmlstyle + "\n" + diffHtml
+          );
+        } catch (error) {
+          testRun.log(error);
+        }
+        reject("Output does not match expected");
       }
     } catch (error) {
-      reject("Simple test failed.");
+      reject(error);
     }
   });
 };
