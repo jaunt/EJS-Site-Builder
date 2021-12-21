@@ -14,6 +14,7 @@ const copyInputs = (testRun, time) => {
   const templates = testRun.dir + "/templates-time-" + time;
   const data = testRun.dir + "/data-time-" + time;
   if (fs.existsSync(templates)) {
+    testRun.log("Copying inputs: " + templates);
     fs.copySync(templates, testRun.dir + "/templates");
   }
   if (fs.existsSync(data)) {
@@ -40,6 +41,9 @@ const outputMatchesExpected = (testRun, time) => {
     testRun.error(expectedDir + " does not exist.");
     return false;
   }
+  fs.rmSync(testRun.dir + "/diff_" + time + ".html", {
+    force: true,
+  });
   try {
     execFileSync("diff", [
       "--unified",
@@ -54,7 +58,7 @@ const outputMatchesExpected = (testRun, time) => {
       drawFileList: true,
     });
     fs.writeFileSync(
-      testRun.dir + "/diff.html",
+      testRun.dir + "/diff_" + time + ".html",
       diff2htmlstyle + "\n" + diffHtml
     );
     return false;
@@ -88,9 +92,11 @@ const test = (CliFry) => {
     fs.rmSync(testRun.dir + "/templates", { recursive: true, force: true });
     fs.rmSync(testRun.dir + "/output", { recursive: true, force: true });
     fs.rmSync(testRun.dir + "/cache", { recursive: true, force: true });
+    await testRun.sleep(100);
 
     // STEP 2, copy templates-time-0 and data-time-0 to data and templates
     copyInputs(testRun, 0);
+    await testRun.sleep(100);
 
     try {
       // STEP 3, start AirFry
@@ -116,6 +122,7 @@ const test = (CliFry) => {
       for (let i = 1; i <= lastTest; i++) {
         testRun.log("\n\nSTARTING SUBTEST " + i + "\n");
         copyInputs(testRun, i);
+        await testRun.sleep(100);
         await testRun.untilOutputIdleSeconds(2, 5000);
         if (!outputMatchesExpected(testRun, i)) {
           reject("Failed to match expected at time " + i);
@@ -129,7 +136,7 @@ const test = (CliFry) => {
 
       resolve("success");
     } catch (error) {
-      reject("Advanced test failed.");
+      reject(error);
     }
   });
 };

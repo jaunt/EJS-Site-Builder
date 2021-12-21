@@ -318,7 +318,7 @@ if (!watchOnly) {
               pinger.restart();
             });
         },
-        250
+        50
       );
     })
     .catch((error) => {

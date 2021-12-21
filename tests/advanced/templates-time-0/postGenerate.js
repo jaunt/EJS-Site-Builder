@@ -12,18 +12,16 @@
 // site: list of json serializable objects which will created as json files
 //            for the purposes of loading in to the web site's runtime javascript code
 
+const path = require("path");
+
 // hack to make sure we get the same output on every test
 let all = [];
 for (let key in output) {
   all.push(...Object.entries(output[key]));
 }
-all = all.map((pair) => {
-  return { page: pair[0], path: pair[1] };
-});
-all.sort((a, b) => a.page.localeCompare(b.page));
 
 resolve({
   siteFiles: {
-    "multipage.json": all,
+    "multipage.json": all.length,
   },
 });
