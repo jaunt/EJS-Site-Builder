@@ -8,7 +8,7 @@
     "test": "npx clifry -n lib/cli.js",
     "start": "node lib/cli.js",
     "build": "tsc",
-    "version": "npm build"
+    "version": "npm run build"
   },
   "repository": {
     "type": "git",
