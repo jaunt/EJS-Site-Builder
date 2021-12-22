@@ -19,7 +19,7 @@ import {
   Dependencies,
 } from "./api";
 
-import { LIB_VERSION } from "./version";
+const LIB_VERSION = require("../package.json").version;
 
 const BAD_OPTIONS = 3;
 
