@@ -17,6 +17,7 @@
 - Designed to integrate with Vite
 - Recommended to use with Windi or Tailwind
 - Recommended to use with a framework like AlpineJS or Petite Vue
+- Functionally tested with [Clifry](https://github.com/jaunt/clifry), a cli functional testing tool.
 
 ## Documentation
 
