@@ -60,7 +60,7 @@ const getOption = (opt: string, def: string): string => {
   }
   let result = options[opt] || optionsConfig[opt];
   if (!result) {
-    if (options.verbose) {
+    if (options.verbose || optionsConfig.verbose) {
       log(
         chalk.yellow(
           "No option specified for " +
@@ -80,11 +80,11 @@ const dataDir = getOption("data", "./airfry/data");
 const outputDir = getOption("output", "./airfry/output");
 const publicDir = getOption("public", "");
 const cacheDir = getOption("cache", "./airfry/cache");
-
+const verbose = getOption("verbose", "");
 const noWatch = getOption("noWatch", "");
 const watchOnly = getOption("watchOnly", "");
 
-if (options.verbose) {
+if (verbose) {
   log("Options detected:");
   log(
     JSON.stringify(
@@ -153,14 +153,14 @@ async function copyDir(src: string, dest: string) {
   }
 }
 
-if (options.publicDir) {
-  if (options.verbose) {
+if (publicDir) {
+  if (verbose) {
     log("Recursively copying from " + publicDir + " to " + outputDir);
   }
   copyDir(publicDir, outputDir);
 }
 
-const airfry = new AirFry(inputDir, dataDir, outputDir, cacheDir);
+const airfry = new AirFry(inputDir, dataDir, outputDir, cacheDir, verbose);
 
 // We want to the cache to store to disk whenever we exit.
 // simplified from:

@@ -157,18 +157,21 @@ export class AirFry {
   readonly outputDir: string;
   readonly cacheDir: string;
   readonly outPath: string;
+  readonly verbose: string;
 
   constructor(
     inputDir: string,
     dataDir: string,
     outputDir: string,
-    cacheDir: string
+    cacheDir: string,
+    verbose: string
   ) {
     this.inputDir = inputDir;
     this.dataDir = dataDir;
     this.outputDir = outputDir;
     this.cacheDir = cacheDir;
     this.outPath = fspath.resolve("./" + this.outputDir);
+    this.verbose = verbose;
     this.loadCache();
   }
 
