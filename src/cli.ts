@@ -45,11 +45,6 @@ program.version(LIB_VERSION);
 program.parse(process.argv);
 const options = program.opts();
 
-if (options.verbose) {
-  log("Options detected:");
-  log(JSON.stringify(options, null, "\t"));
-}
-
 nconf.argv().env().file({ file: "./airfry.json" });
 const optionsConfig = nconf.get("options") || {};
 
@@ -88,6 +83,25 @@ const cacheDir = getOption("cache", "./airfry/cache");
 
 const noWatch = getOption("noWatch", "");
 const watchOnly = getOption("watchOnly", "");
+
+if (options.verbose) {
+  log("Options detected:");
+  log(
+    JSON.stringify(
+      {
+        input: inputDir,
+        output: outputDir,
+        data: dataDir,
+        public: publicDir,
+        cache: cacheDir,
+        noWatch: noWatch,
+        watchOnly: watchOnly,
+      },
+      null,
+      "\t"
+    )
+  );
+}
 
 if (watchOnly && noWatch) {
   logError("Can't both watch and not watch!  Exiting.");
