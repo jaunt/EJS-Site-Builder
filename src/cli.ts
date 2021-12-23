@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import fs from "fs";
 import fspath from "path";
 import chalk from "chalk";
+const { promises: fs } = require("fs");
 import chokidar from "chokidar";
 import nconf from "nconf";
 import process from "process";
@@ -34,6 +34,7 @@ const program = new Command()
   .option("-i, --input <inputDir>", "input directory")
   .option("-d, --data <dataDir>", "data directory")
   .option("-o, --output <outputDir>", "output directory")
+  .option("-o, --public <publicDir>", "public directory")
   .option("-c, --cache <cacheDir>", "cache directory")
   .option("-nw, --noWatch", "quit after processing all templates")
   .option("-wo, --watchOnly", "don't process at start, only watch")
@@ -79,10 +80,11 @@ const getOption = (opt: string, def: string): string => {
   return result;
 };
 
-const inputDir = getOption("input", "./airfry-input");
-const dataDir = getOption("data", "./airfry-data");
-const outputDir = getOption("output", "./airfry-output");
-const cacheDir = getOption("cache", "./airfry-cache");
+const inputDir = getOption("input", "./airfry/input");
+const dataDir = getOption("data", "./airfry/data");
+const outputDir = getOption("output", "./airfry/output");
+const publicDir = getOption("public", "");
+const cacheDir = getOption("cache", "./airfry/cache");
 
 const noWatch = getOption("noWatch", "");
 const watchOnly = getOption("watchOnly", "");
@@ -120,6 +122,28 @@ if (isOneOrTheOtherRelative(dataDir, outputDir)) {
 
 if (isOneOrTheOtherRelative(dataDir, cacheDir)) {
   exit(BAD_OPTIONS);
+}
+
+//https://stackoverflow.com/questions/39106516/node-fs-copy-a-folder
+async function copyDir(src: string, dest: string) {
+  await fs.mkdir(dest, { recursive: true });
+  let entries = await fs.readdir(src, { withFileTypes: true });
+
+  for (let entry of entries) {
+    let srcPath = fspath.join(src, entry.name);
+    let destPath = fspath.join(dest, entry.name);
+
+    entry.isDirectory()
+      ? await copyDir(srcPath, destPath)
+      : await fs.copyFile(srcPath, destPath);
+  }
+}
+
+if (options.publicDir) {
+  if (options.verbose) {
+    log("Recursively copying from " + publicDir + " to " + outputDir);
+  }
+  copyDir(publicDir, outputDir);
 }
 
 const airfry = new AirFry(inputDir, dataDir, outputDir, cacheDir);
