@@ -37,7 +37,6 @@ const program = new Command()
   .option("-c, --cache <cacheDir>", "cache directory")
   .option("-nw, --noWatch", "quit after processing all templates")
   .option("-wo, --watchOnly", "don't process at start, only watch")
-  .option("-k, --keepOutDir", "clear output directory on start")
   .option("-cc, --clearCache", "clear cache on start")
   .option("-v, --verbose", "logging verbosity");
 
@@ -47,7 +46,7 @@ const options = program.opts();
 
 if (options.verbose) {
   log("Options detected:");
-  log(options);
+  log(JSON.stringify(options, null, "\t"));
 }
 
 nconf.argv().env().file({ file: "./airfry.json" });
@@ -85,16 +84,8 @@ const dataDir = getOption("data", "./airfry-data");
 const outputDir = getOption("output", "./airfry-output");
 const cacheDir = getOption("cache", "./airfry-cache");
 
-const keepOutDir = getOption("keepOutDir", "");
 const noWatch = getOption("noWatch", "");
 const watchOnly = getOption("watchOnly", "");
-
-if (!keepOutDir) {
-  if (fs.existsSync(outputDir)) {
-    log("Clearing output dir: " + outputDir);
-    fs.rmSync(outputDir, { recursive: true });
-  }
-}
 
 if (watchOnly && noWatch) {
   logError("Can't both watch and not watch!  Exiting.");
