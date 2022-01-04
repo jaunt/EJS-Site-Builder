@@ -651,7 +651,7 @@ export class AirFry {
             frontMatter: me.state.frontMatter[generateData.name].attributes,
           };
           const code =
-            "((require, resolve, reject, inputs, global, getDataFileNames, cache, log) =>  {" +
+            "((require, resolve, reject, inputs, global, getDataFileNames, cache, log, dataDir) =>  {" +
             me.state.generateScripts[generateData.name] +
             "})";
           me.expireCache();
@@ -664,7 +664,8 @@ export class AirFry {
               me.getGlobalDataAccessProxy(generateData.name),
               me.getDataFileNames.bind(me, generateData.name),
               me.state.cache["_" + generateData.name],
-              me.scriptLogger.bind(null, generateData.name)
+              me.scriptLogger.bind(null, generateData.name),
+              fspath.resolve(me.dataDir)
             );
           } catch (error: unknown) {
             me.state.errorCount++;
@@ -904,14 +905,17 @@ export class AirFry {
           me.state.cache[PRE_GENERATE_NAME] = {};
         }
         const code =
-          "((require, resolve, reject, cache, log) =>  {" + script + "})";
+          "((require, resolve, reject, cache, log, dataDir) =>  {" +
+          script +
+          "})";
         try {
           vm.runInThisContext(code)(
             require,
             generateSuccess,
             generateError,
             me.state.cache[PRE_GENERATE_NAME],
-            me.scriptLogger.bind(null, PRE_GENERATE_NAME)
+            me.scriptLogger.bind(null, PRE_GENERATE_NAME),
+            fspath.resolve(me.dataDir)
           );
         } catch (error) {
           me.state.errorCount++;
@@ -961,14 +965,17 @@ export class AirFry {
         };
         const script = fs.readFileSync(g, "utf8");
         const code =
-          "((require, resolve, reject, output, log) =>  {" + script + "})";
+          "((require, resolve, reject, output, log, dataDir) =>  {" +
+          script +
+          "})";
         try {
           vm.runInThisContext(code)(
             require,
             generateSuccess,
             generateError,
             me.state.outputData,
-            me.scriptLogger.bind(null, POST_GENERATE_NAME)
+            me.scriptLogger.bind(null, POST_GENERATE_NAME),
+            fspath.resolve(me.dataDir)
           );
         } catch (error) {
           me.state.errorCount++;

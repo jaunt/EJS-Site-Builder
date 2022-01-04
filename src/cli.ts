@@ -19,6 +19,7 @@ import {
   Dependencies,
 } from "./api";
 
+// this is only safe because airfry is a stand-alone cli, not a module
 const LIB_VERSION = require("../package.json").version;
 
 const BAD_OPTIONS = 3;

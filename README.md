@@ -22,3 +22,10 @@
 ## Documentation
 
 Comming soon.
+
+## Build / Release
+
+```
+npm install --global np
+np
+```
