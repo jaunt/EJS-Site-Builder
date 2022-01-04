@@ -353,15 +353,14 @@ export class AirFry {
     log(chalk.yellow(name) + chalk.white(": " + args[1]), ...args.slice(2));
   }
 
-  protected writeEntryScript(script: string, url: string): void {
-    const writePath = "./" + fspath.join(this.outputDir, "/", url);
+  protected writeEntryScript(script: string, path: string, name: string): void {
+    const writePath = "./" + fspath.join(this.outputDir, "/", path);
     if (!fs.existsSync(writePath)) {
       this.mkdirSyncSafe(writePath, { recursive: true });
     }
-    let name = "index.js";
-    if (url == "/") name = "main.js";
+    if (path == "/") name = "main.js";
     const p = fspath.resolve(writePath + "/" + name);
-    this.state.outputData.entry[url] = p;
+    this.state.outputData.entry[path] = p;
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
         this.state.errorCount++;
@@ -461,6 +460,11 @@ export class AirFry {
   ): Promise<TemplateName> {
     const me = this;
     let current = template;
+    const parts = path.split("/");
+    let lastPathPart = "";
+    if (parts.length) {
+      lastPathPart = parts[parts.length - 1];
+    }
     return new Promise(function (resolve, reject) {
       try {
         const renderInclude = function (
@@ -490,9 +494,27 @@ export class AirFry {
         if (me.state.frontMatter[template].wrapper) {
           current = me.state.frontMatter[template].wrapper as string;
           // render wrapper where _body gets redirected back to this template.
-          html = me.state.templates[current](data, undefined, renderInclude);
+          html = me.state.templates[current](
+            {
+              ...data,
+              pagePath: path,
+              pageName: template,
+              lastPath: lastPathPart,
+            },
+            undefined,
+            renderInclude
+          );
         } else {
-          html = me.state.templates[template](data, undefined, renderInclude);
+          html = me.state.templates[template](
+            {
+              ...data,
+              pagePath: path,
+              templateName: template,
+              lastPath: lastPathPart,
+            },
+            undefined,
+            renderInclude
+          );
         }
         const writePath = "./" + fspath.join(me.outputDir, "/", path);
         if (!fs.existsSync(writePath)) {
@@ -536,10 +558,56 @@ export class AirFry {
       let toRender = toGenerate.length;
 
       const checkDone = (pageName: PageName, path: string = "") => {
+        let entryScripts: string[] = [];
         toRender--;
         delete me.state.toGenerate[pageName]; // mark completed
         if (path && me.state.entryScripts[pageName] != undefined) {
-          me.writeEntryScript(me.state.entryScripts[pageName], path);
+          if (me.verbose) {
+            log(chalk.yellow("using entry script for '" + pageName + "'"));
+          }
+          entryScripts.unshift(
+            "// entry script: " +
+              pageName +
+              "\n" +
+              me.state.entryScripts[pageName]
+          );
+        }
+        // find any wrapper entry scripts
+        let wrapperRef = pageName;
+        while (wrapperRef) {
+          const wrapperPage = me.state.frontMatter[wrapperRef]
+            .wrapper as string;
+          if (wrapperPage) {
+            if (me.state.entryScripts[wrapperPage] != undefined) {
+              if (me.verbose) {
+                log(
+                  chalk.yellow(
+                    "appending wrapper entry script from '" +
+                      wrapperPage +
+                      "' for '" +
+                      pageName +
+                      "'"
+                  )
+                );
+              }
+              entryScripts.unshift(
+                "// entry script: " +
+                  wrapperPage +
+                  "\n" +
+                  me.state.entryScripts[wrapperPage]
+              );
+            }
+          }
+          wrapperRef = wrapperPage;
+        }
+        if (entryScripts.length) {
+          const script = entryScripts.join("\n");
+          const parts = path.split("/");
+          let name = "";
+          if (parts.length) {
+            name = parts[parts.length - 1] + ".js";
+          }
+          me.writeEntryScript(script, path, name);
         }
         if (toRender == 0) {
           resolve();
