@@ -651,7 +651,7 @@ export class AirFry {
             frontMatter: me.state.frontMatter[generateData.name].attributes,
           };
           const code =
-            "((require, resolve, reject, inputs, global, getDataFileNames, cache, log) =>  {" +
+            "((require, resolve, reject, inputs, global, getDataFileNames, frontMatterParse, cache, log) =>  {" +
             me.state.generateScripts[generateData.name] +
             "})";
           me.expireCache();
@@ -663,6 +663,7 @@ export class AirFry {
               inputs,
               me.getGlobalDataAccessProxy(generateData.name),
               me.getDataFileNames.bind(me, generateData.name),
+              fm,
               me.state.cache["_" + generateData.name],
               me.scriptLogger.bind(null, generateData.name)
             );
