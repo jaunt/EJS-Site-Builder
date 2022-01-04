@@ -651,7 +651,7 @@ export class AirFry {
             frontMatter: me.state.frontMatter[generateData.name].attributes,
           };
           const code =
-            "((require, resolve, reject, inputs, global, getDataFileNames, cache, log, dataDir) =>  {" +
+            "((require, resolve, reject, inputs, global, getDataFileNames, cache, log, frontMatterParse, dataDir) =>  {" +
             me.state.generateScripts[generateData.name] +
             "})";
           me.expireCache();
@@ -665,6 +665,7 @@ export class AirFry {
               me.getDataFileNames.bind(me, generateData.name),
               me.state.cache["_" + generateData.name],
               me.scriptLogger.bind(null, generateData.name),
+              fm,
               fspath.resolve(me.dataDir)
             );
           } catch (error: unknown) {
