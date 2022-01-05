@@ -5,7 +5,7 @@
 // It must resolve asynchronously
 // or reject on failure.
 //
-// global.js has access to
+// preGenerate.js has access to
 // cache: a javascript object scripts can use to cache data that can be json.stringified
 //
 // Outputs:
