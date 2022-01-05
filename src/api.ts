@@ -30,6 +30,9 @@ const SCRIPT_LIB = "<script lib>";
 const SCRIPT_LIB_LENGTH = SCRIPT_LIB.length;
 const SCRIPT_GENERATE = "<script generate>";
 const SCRIPT_GENERATE_LENGTH = SCRIPT_GENERATE.length;
+const SCRIPT_GENERATE_USE = "<script generate-use:";
+const SCRIPT_GENERATE_USE_LENGTH = SCRIPT_GENERATE_USE.length;
+const SCRIPT_GENERATE_USE_REGEX = /^"([\w-]+(\/([\w-]+))+)">$/;
 const END_SCRIPT = "</script>";
 const END_SCRIPT_LENGTH = END_SCRIPT.length;
 const EXTRACT_SCRIPT = /<script[\s\S]*?>[\s\S]*?<\/script>/gi;
@@ -41,6 +44,10 @@ type Path = string;
 
 type Script = {
   [key: PageName]: Code;
+};
+
+type ScriptRef = {
+  [key: PageName]: string;
 };
 
 export type Dependencies = {
@@ -123,6 +130,7 @@ type GeneratorResponse = {
 
 type AirFryData = {
   generateScripts: Script;
+  generateScriptRefs: ScriptRef;
   entryScripts: Script;
   templateDepTree: DependencyTree;
   pathDepTree: DependencyTree;
@@ -177,6 +185,7 @@ export class AirFry {
 
   private state: AirFryData = {
     generateScripts: {},
+    generateScriptRefs: {},
     entryScripts: {},
     templateDepTree: {},
     pathDepTree: {},
@@ -332,7 +341,7 @@ export class AirFry {
       try {
         const lines = error.stack.split("\n");
         const errorLine = Number(lines[0].split(":")[1]) - 1;
-        const script = this.state.generateScripts[name].split("\n");
+        const script = this.getGenerateScript(name).split("\n");
         script.forEach((line, index) => {
           if (index == errorLine) {
             log(chalk.bgBlack.red(line));
@@ -482,9 +491,9 @@ export class AirFry {
           // does dep template have frontmatter?
           return me.state.templates[dependency](
             {
-              ...(passedData || {}),
               ...data,
               ...(me.state.frontMatter[dependency] || {}),
+              ...(passedData || {}),
             },
             undefined,
             renderInclude
@@ -624,8 +633,8 @@ export class AirFry {
         // Generate a page that does not have a generate script
         // or returns no page creation data from it
         const data = {
-          ...me.state.frontMatter[name],
           global: me.getGlobalDataAccessProxy(name),
+          ...me.state.frontMatter[name],
         };
         me.renderTemplate(name, path, data)
           .then(() => {
@@ -637,7 +646,7 @@ export class AirFry {
       };
 
       toGenerate.forEach((generateData: ToGenerateData) => {
-        if (me.state.generateScripts[generateData.name]) {
+        if (me.getGenerateScript(generateData.name)) {
           let pinger = new Pinger(
             generateData.name,
             (id: string) => {
@@ -688,9 +697,9 @@ export class AirFry {
             } else {
               pages.forEach((generatePageRequest: PageGenerateRequest) => {
                 const data = {
-                  ...me.state.frontMatter[generateData.name],
                   global: me.getGlobalDataAccessProxy(generateData.name),
                   ...generatePageRequest.data,
+                  ...me.state.frontMatter[generateData.name],
                 };
                 const starReplacedPath = generateData.generate.replace(
                   /\*/,
@@ -720,7 +729,7 @@ export class AirFry {
           };
           const code =
             "((require, resolve, reject, inputs, global, getDataFileNames, cache, log, frontMatterParse, dataDir) =>  {" +
-            me.state.generateScripts[generateData.name] +
+            me.getGenerateScript(generateData.name) +
             "})";
           me.expireCache();
           try {
@@ -787,6 +796,31 @@ export class AirFry {
   }
 
   /// -----------------------------------------------------------------------------
+  /// getGenerateScript
+  ///
+  /// Get script for template, either direct or referred
+  /// -----------------------------------------------------------------------------
+  protected getGenerateScript(name: PageName): string {
+    if (this.state.generateScripts[name]) {
+      return this.state.generateScripts[name];
+    }
+    const ref = this.state.generateScriptRefs[name];
+    if (ref) {
+      if (this.state.generateScripts[ref]) {
+        if (this.verbose) {
+          log(
+            chalk.yellow(
+              "using reference generate script '" + ref + "' for '" + name + "'"
+            )
+          );
+        }
+        return this.state.generateScripts[ref];
+      }
+    }
+    return "";
+  }
+
+  /// -----------------------------------------------------------------------------
   /// processScript
   ///
   /// Process a script tag found in a template file.
@@ -800,6 +834,35 @@ export class AirFry {
       this.state.generateScripts[name] = stripped;
       return true;
     }
+    if (source.startsWith(SCRIPT_GENERATE_USE)) {
+      // refer to an existing script
+      const stripped = source
+        .slice(SCRIPT_GENERATE_USE_LENGTH, -END_SCRIPT_LENGTH)
+        .trim();
+
+      const match = stripped.match(SCRIPT_GENERATE_USE_REGEX);
+
+      if (match) {
+        const dependency = match[1];
+        this.state.generateScriptRefs[name] = dependency;
+        // add source of generate script as a dependency
+        if (!this.state.templateDepTree[dependency]) {
+          this.state.templateDepTree[dependency] = {};
+        }
+        this.state.templateDepTree[dependency][name] = true;
+      } else {
+        logError(
+          chalk.red(
+            "Generate-use script template in: '" +
+              name +
+              "' not specified correctly.  See: (https://jaunt.github.io/airfry/docs/input/templates)"
+          )
+        );
+      }
+
+      return true;
+    }
+
     if (source.startsWith(SCRIPT_ENTRY)) {
       // add entry source to build map
       const stripped = source.slice(SCRIPT_ENTRY_LENGTH, -END_SCRIPT_LENGTH);
