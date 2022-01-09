@@ -159,6 +159,13 @@ function safeOutputCheck(
   func(path, ...args);
 }
 
+function stringifyFuncs(_: any, v: any) {
+  if (typeof v === "function") {
+    return "render function";
+  }
+  return v;
+}
+
 export class AirFry {
   readonly inputDir: string;
   readonly dataDir: string;
@@ -367,7 +374,6 @@ export class AirFry {
     if (!fs.existsSync(writePath)) {
       this.mkdirSyncSafe(writePath, { recursive: true });
     }
-    if (path == "/") name = "main.js";
     const p = fspath.resolve(writePath + "/" + name);
     this.state.outputData.entry[path] = p;
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
@@ -458,6 +464,22 @@ export class AirFry {
   }
 
   /// -----------------------------------------------------------------------------
+  /// getEntryScriptName
+  ///
+  /// Get the entry script path fparts rom a template
+  /// -----------------------------------------------------------------------------
+  protected getEntryScriptName(path: string): string {
+    const parts = path.split("/");
+    let scriptName = "";
+    if (path == "/") {
+      scriptName = "main";
+    } else if (parts.length) {
+      scriptName = parts[parts.length - 1];
+    }
+    return scriptName;
+  }
+
+  /// -----------------------------------------------------------------------------
   /// renderTemplate
   ///
   /// recursively render a template and all its children to disk
@@ -469,11 +491,9 @@ export class AirFry {
   ): Promise<TemplateName> {
     const me = this;
     let current = template;
-    const parts = path.split("/");
-    let lastPathPart = "";
-    if (parts.length) {
-      lastPathPart = parts[parts.length - 1];
-    }
+
+    const entryScriptName = me.getEntryScriptName(path);
+
     return new Promise(function (resolve, reject) {
       try {
         const renderInclude = function (
@@ -500,15 +520,27 @@ export class AirFry {
           );
         };
         let html;
+
+        const inputVars = {
+          pagePath: path,
+          pageName: template,
+          lastPath: entryScriptName,
+          entryScript:
+            (path == "/" ? "" : path + "/") + entryScriptName + ".js",
+        };
+
         if (me.state.frontMatter[template].wrapper) {
           current = me.state.frontMatter[template].wrapper as string;
           // render wrapper where _body gets redirected back to this template.
+          if (!me.state.templateDepTree[current]) {
+            me.state.templateDepTree[current] = {};
+          }
+          me.state.templateDepTree[current][template] = true;
+
           html = me.state.templates[current](
             {
               ...data,
-              pagePath: path,
-              pageName: template,
-              lastPath: lastPathPart,
+              ...inputVars,
             },
             undefined,
             renderInclude
@@ -517,9 +549,7 @@ export class AirFry {
           html = me.state.templates[template](
             {
               ...data,
-              pagePath: path,
-              templateName: template,
-              lastPath: lastPathPart,
+              ...inputVars,
             },
             undefined,
             renderInclude
@@ -611,12 +641,8 @@ export class AirFry {
         }
         if (entryScripts.length) {
           const script = entryScripts.join("\n");
-          const parts = path.split("/");
-          let name = "";
-          if (parts.length) {
-            name = parts[parts.length - 1] + ".js";
-          }
-          me.writeEntryScript(script, path, name);
+          const scriptName = me.getEntryScriptName(path);
+          me.writeEntryScript(script, path, scriptName + ".js");
         }
         if (toRender == 0) {
           resolve();
@@ -984,6 +1010,7 @@ export class AirFry {
                 index = script[1];
               });
             } else template = body;
+            log("compiling template: " + name);
             me.compileTemplate(template.trim(), name);
             me.cueGeneration(name);
             checkDone(name);
@@ -1194,6 +1221,12 @@ export class AirFry {
   getTemplateDeps(templateName: TemplateName): Dependencies {
     // when a template updates, we need to check its dependencies and also trigger its own
     // generation if it is a page maker
+
+    if (this.verbose) {
+      log("Dependency Tree Tree:");
+      log(JSON.stringify(this.state.templateDepTree, null, "  "));
+    }
+
     const dependencies = {
       ...(this.state.templateDepTree[templateName] || {}),
       [templateName]: true,

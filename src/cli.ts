@@ -299,6 +299,8 @@ if (!watchOnly) {
               // render it:
               // step 2. ... then any other templates depending on it
               deps = { ...deps, ...airfry.getTemplateDeps(updateList[0]) };
+              log("Ready to update deps:");
+              log(JSON.stringify(deps));
             })
             .catch((error) => {
               logError("Template update error: ", error);
