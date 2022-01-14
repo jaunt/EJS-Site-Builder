@@ -97,19 +97,20 @@ type Cache = {
   [key: PageName]: CacheData;
 };
 
-type FilesWritten = {
-  [key: string]: Path;
-};
-
 type GeneratorDataOutput = {
   [key: PageName]: { [key: string]: PageData };
 };
 
+type FilesWritten = {
+  source: string;
+  path: string;
+};
+
 type OutputData = {
-  html: FilesWritten;
-  entry: FilesWritten;
-  lib: FilesWritten;
-  json: FilesWritten;
+  html: FilesWritten[];
+  entry: FilesWritten[];
+  lib: FilesWritten[];
+  json: FilesWritten[];
   outData: GeneratorDataOutput;
 };
 
@@ -204,10 +205,10 @@ export class AirFry {
     globalData: {},
     cache: {},
     outputData: {
-      html: {},
-      entry: {},
-      lib: {},
-      json: {},
+      html: [],
+      entry: [],
+      lib: [],
+      json: [],
       outData: {},
     },
     errorCount: 0,
@@ -369,13 +370,18 @@ export class AirFry {
     log(chalk.yellow(name) + chalk.white(": " + args[1]), ...args.slice(2));
   }
 
-  protected writeEntryScript(script: string, path: string, name: string): void {
+  protected writeEntryScript(
+    template: string,
+    script: string,
+    path: string,
+    name: string
+  ): void {
     const writePath = "./" + fspath.join(this.outputDir, "/", path);
     if (!fs.existsSync(writePath)) {
       this.mkdirSyncSafe(writePath, { recursive: true });
     }
     const p = fspath.resolve(writePath + "/" + name);
-    this.state.outputData.entry[path] = p;
+    this.state.outputData.entry.push({ source: template, path: p });
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
         this.state.errorCount++;
@@ -416,7 +422,7 @@ export class AirFry {
         if (!fs.existsSync(writePath)) {
           this.mkdirSyncSafe(writePath, { recursive: true });
         }
-        this.state.outputData.json[name] = p;
+        this.state.outputData.json.push({ source: name, path: p });
         let writeData;
         if (
           typeof siteFiles[file] === "string" ||
@@ -569,7 +575,7 @@ export class AirFry {
           me.mkdirSyncSafe(writePath, { recursive: true });
         }
         const p = fspath.resolve(writePath + "/index.html");
-        me.state.outputData.html[path] = p;
+        me.state.outputData.html.push({ source: template, path: p });
         me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
           if (err) {
             reject(err);
@@ -651,7 +657,7 @@ export class AirFry {
         if (entryScripts.length) {
           const script = entryScripts.join("\n");
           const scriptName = me.getEntryScriptName(path);
-          me.writeEntryScript(script, path, scriptName + ".js");
+          me.writeEntryScript(pageName, script, path, scriptName + ".js");
         }
         if (toRender == 0) {
           resolve();
@@ -940,7 +946,7 @@ export class AirFry {
         });
       }
       const p = fspath.resolve(this.outputDir + libDir + "/" + name + ".js");
-      this.state.outputData.lib[name] = p;
+      this.state.outputData.lib.push({ source: name, path: p });
       this.writeFileSafe(
         p,
         stripped,
