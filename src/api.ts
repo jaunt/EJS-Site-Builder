@@ -471,10 +471,12 @@ export class AirFry {
   protected getEntryScriptName(path: string): string {
     const parts = path.split("/");
     let scriptName = "";
-    if (path == "/") {
+    if (path == "") {
       scriptName = "main";
     } else if (parts.length) {
       scriptName = parts[parts.length - 1];
+    } else {
+      scriptName = "main";
     }
     return scriptName;
   }
@@ -491,6 +493,13 @@ export class AirFry {
   ): Promise<TemplateName> {
     const me = this;
     let current = template;
+
+    if (path.length && path.slice(-1) == "/") {
+      // trim trailing path if it exists.
+      // this should allow us to work no matter how
+      // the user specified generate paths
+      path = path.substring(0, path.length - 1);
+    }
 
     const entryScriptName = me.getEntryScriptName(path);
 
@@ -563,10 +572,10 @@ export class AirFry {
         me.state.outputData.html[path] = p;
         me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
           if (err) {
-            reject(template);
+            reject(err);
           } else {
             log(chalk.magenta("Wrote: " + p));
-            resolve(template);
+            resolve(path);
           }
         });
       } catch (error) {
@@ -577,7 +586,7 @@ export class AirFry {
           )
         );
         logError(chalk.red(error));
-        reject(template);
+        reject(error);
       }
     });
   }
@@ -663,11 +672,11 @@ export class AirFry {
           ...me.state.frontMatter[name],
         };
         me.renderTemplate(name, path, data)
-          .then(() => {
-            checkDone(name, path);
+          .then((fixedPath) => {
+            checkDone(name, fixedPath);
           })
           .catch(() => {
-            checkDone(name, path);
+            checkDone(name);
           });
       };
 
@@ -693,7 +702,7 @@ export class AirFry {
             me.processGeneratorResponse(
               response,
               generateData.name,
-              "_" + generateData.name
+              me.getCacheName(generateData.name)
             );
             let pages: PageGenerateRequest[];
             if (!generate) {
@@ -732,8 +741,8 @@ export class AirFry {
                   generatePageRequest.path
                 );
                 me.renderTemplate(generateData.name, starReplacedPath, data)
-                  .then(() => {
-                    checkDone(generateData.name, starReplacedPath);
+                  .then((fixedPath) => {
+                    checkDone(generateData.name, fixedPath);
                   })
                   .catch(() => {
                     checkDone(generateData.name);
@@ -746,12 +755,12 @@ export class AirFry {
             me.chalkUpError(generateData.name, error);
             checkDone(generateData.name);
           };
-          if (!me.state.cache["_" + generateData.name]) {
-            me.state.cache["_" + generateData.name] = {};
+          if (!me.state.cache[me.getCacheName(generateData.name)]) {
+            me.state.cache[me.getCacheName(generateData.name)] = {};
           }
           const inputs = {
             triggeredBy: generateData.triggeredBy,
-            frontMatter: me.state.frontMatter[generateData.name].attributes,
+            frontMatter: me.state.frontMatter[generateData.name],
           };
           const code =
             "((require, resolve, reject, inputs, global, getDataFileNames, cache, log, frontMatterParse, dataDir) =>  {" +
@@ -766,7 +775,7 @@ export class AirFry {
               inputs,
               me.getGlobalDataAccessProxy(generateData.name),
               me.getDataFileNames.bind(me, generateData.name),
-              me.state.cache["_" + generateData.name],
+              me.state.cache[me.getCacheName(generateData.name)],
               me.scriptLogger.bind(null, generateData.name),
               fm,
               fspath.resolve(me.dataDir)
@@ -819,6 +828,32 @@ export class AirFry {
         triggeredBy: triggeredBy,
       };
     }
+  }
+
+  /// -----------------------------------------------------------------------------
+  /// getGenerateScript
+  ///
+  /// Get cache name -- all scripts referring to another script share it's cache
+  /// -----------------------------------------------------------------------------
+  protected getCacheName(name: PageName): string {
+    if (this.state.generateScripts[name]) {
+      return "_" + name;
+    }
+    const ref = this.state.generateScriptRefs[name];
+    if (ref) {
+      if (this.state.generateScripts[ref]) {
+        if (this.verbose) {
+          log(
+            chalk.yellow(
+              "using referencecache '" + ref + "' for '" + name + "'"
+            )
+          );
+        }
+        return "_" + ref;
+      }
+    }
+    logError("Unexpected attempt to get cache for non script: " + name);
+    return "_ERROR";
   }
 
   /// -----------------------------------------------------------------------------
