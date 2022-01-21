@@ -32,7 +32,7 @@
     "@types/ejs": "^3.1.0",
     "@types/micromatch": "^4.0.2",
     "@types/nconf": "^0.10.1",
-    "axios": "^0.24.0",
+    "axios": "^0.25.0",
     "chalk": "^4.1.2",
     "chokidar": "^3.5.2",
     "commander": "^8.3.0",
