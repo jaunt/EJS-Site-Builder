@@ -512,8 +512,9 @@ export class AirFry {
     return new Promise(function (resolve, reject) {
       try {
         const renderInclude = function (
+          passedData: PageData,
           dependency: TemplateName,
-          passedData?: PageData
+          includeData?: PageData // passed with ejs include
         ): string {
           current = dependency;
           if (dependency == "_body") {
@@ -526,12 +527,12 @@ export class AirFry {
           // does dep template have frontmatter?
           return me.state.templates[dependency](
             {
-              ...data,
+              ...passedData,
               ...(me.state.frontMatter[dependency] || {}),
-              ...(passedData || {}),
+              ...(includeData || {}),
             },
             undefined,
-            renderInclude
+            renderInclude.bind(null, passedData)
           );
         };
         let html;
@@ -544,6 +545,11 @@ export class AirFry {
             (path == "/" ? "" : path + "/") + entryScriptName + ".js",
         };
 
+        const renderData = {
+          ...inputVars,
+          ...data,
+        };
+
         if (me.state.frontMatter[template].wrapper) {
           current = me.state.frontMatter[template].wrapper as string;
           // render wrapper where _body gets redirected back to this template.
@@ -551,23 +557,16 @@ export class AirFry {
             me.state.templateDepTree[current] = {};
           }
           me.state.templateDepTree[current][template] = true;
-
           html = me.state.templates[current](
-            {
-              ...data,
-              ...inputVars,
-            },
+            renderData,
             undefined,
-            renderInclude
+            renderInclude.bind(null, renderData)
           );
         } else {
           html = me.state.templates[template](
-            {
-              ...data,
-              ...inputVars,
-            },
+            renderData,
             undefined,
-            renderInclude
+            renderInclude.bind(null, renderData)
           );
         }
         const writePath = "./" + fspath.join(me.outputDir, "/", path);
