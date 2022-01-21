@@ -850,7 +850,7 @@ export class AirFry {
         if (this.verbose) {
           log(
             chalk.yellow(
-              "using referencecache '" + ref + "' for '" + name + "'"
+              "using reference cache '" + ref + "' for '" + name + "'"
             )
           );
         }
