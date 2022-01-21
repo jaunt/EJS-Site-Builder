@@ -9,7 +9,7 @@
 1. When you make a change to your templates or data, the output should be ready as fast as possible, even with thousands of files.
 2. Avoid unnecessary site rebuilds like the plague.
 3. Don't try to do too much and instead take advantage of modern frontend dev tools. For example no assumptions are made about image processing or bundling. Use Vite!
-4. Opinionated and proven for production.
+4. Opinionated design & workflow based on 20 years of commercial development experience.
 5. Near-Zero config. Express yourself with javascript.
 
 - Effecient Dependecy Tracking
