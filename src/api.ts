@@ -119,10 +119,13 @@ type PageGenerateRequest = {
   data: PageData;
 };
 
+type GeneratorPages = {
+  generate: PageGenerateRequest[] | PageGenerateRequest;
+};
+
 type GeneratorResponse = {
   cache: CacheData;
   siteFiles: { [key: Path]: unknown };
-  generate: PageGenerateRequest[] | PageGenerateRequest | undefined;
   watchFiles: Path[];
   watchGlobs: string[];
   outData: GeneratorDataOutput;
@@ -370,6 +373,17 @@ export class AirFry {
     log(chalk.yellow(name) + chalk.white(": " + args[1]), ...args.slice(2));
   }
 
+  protected fixPath(path: string): string {
+    // trim trailing path if it exists.
+    // this should allow us to work no matter how
+    // the user specified generate paths
+    if (path.length && path.slice(-1) == "/") {
+      path = path.substring(0, path.length - 1);
+      return path;
+    }
+    return path;
+  }
+
   protected writeEntryScript(
     template: string,
     script: string,
@@ -392,16 +406,52 @@ export class AirFry {
     });
   }
 
-  protected fixPath(path: string): string {
-    if (path.length && path.slice(-1) == "/") {
-      // trim trailing path if it exists.
-      // this should allow us to work no matter how
-      // the user specified generate paths
-      path = path.substring(0, path.length - 1);
-      return path;
+  protected processEntryScripts(pageName: string, outPath: string) {
+    // Write out entry scripts (and append wrapper entry scripts)
+    const me = this;
+    let entryScripts: string[] = [];
+    if (me.state.entryScripts[pageName] != undefined) {
+      if (me.verbose) {
+        log(chalk.yellow("using entry script for '" + pageName + "'"));
+      }
+      entryScripts.unshift(
+        "// entry script: " + pageName + "\n" + me.state.entryScripts[pageName]
+      );
     }
-    return path;
+    // find any wrapper entry scripts
+    let wrapperRef = pageName;
+    while (wrapperRef) {
+      const wrapperPage = me.state.frontMatter[wrapperRef].wrapper as string;
+      if (wrapperPage) {
+        if (me.state.entryScripts[wrapperPage] != undefined) {
+          if (me.verbose) {
+            log(
+              chalk.yellow(
+                "appending wrapper entry script from '" +
+                  wrapperPage +
+                  "' for '" +
+                  pageName +
+                  "'"
+              )
+            );
+          }
+          entryScripts.unshift(
+            "// entry script: " +
+              wrapperPage +
+              "\n" +
+              me.state.entryScripts[wrapperPage]
+          );
+        }
+      }
+      wrapperRef = wrapperPage;
+    }
+    if (entryScripts.length) {
+      const script = entryScripts.join("\n");
+      const scriptName = me.getEntryScriptName(outPath);
+      me.writeEntryScript(pageName, script, outPath, scriptName + ".js");
+    }
   }
+
   /// -----------------------------------------------------------------------------
   /// processGeneratorResponse
   ///
@@ -482,7 +532,7 @@ export class AirFry {
   /// -----------------------------------------------------------------------------
   /// getEntryScriptName
   ///
-  /// Get the entry script path fparts rom a template
+  /// Get the entry script name for a template
   /// -----------------------------------------------------------------------------
   protected getEntryScriptName(path: string): string {
     const parts = path.split("/");
@@ -618,92 +668,46 @@ export class AirFry {
     return new Promise(function (resolve, _) {
       let toGenerate = Object.values(me.state.toGenerate);
 
-      let toRender = toGenerate.length;
+      let toRender = toGenerate.length; // todo list count
 
-      const checkDone = (
-        pageName: PageName,
-        path: string = "",
-        isYield: boolean = true
-      ) => {
-        let entryScripts: string[] = [];
-        if (!isYield) {
-          toRender--;
+      const checkDone = (pageName: PageName, outPath: string = "") => {
+        // if a page was generated, process any entry scripts
+        if (outPath) {
+          me.processEntryScripts(pageName, outPath);
         }
-
-        delete me.state.toGenerate[pageName]; // mark completed
-        if (path && me.state.entryScripts[pageName] != undefined) {
-          if (me.verbose) {
-            log(chalk.yellow("using entry script for '" + pageName + "'"));
-          }
-          entryScripts.unshift(
-            "// entry script: " +
-              pageName +
-              "\n" +
-              me.state.entryScripts[pageName]
-          );
-        }
-        // find any wrapper entry scripts
-        let wrapperRef = pageName;
-        while (wrapperRef) {
-          const wrapperPage = me.state.frontMatter[wrapperRef]
-            .wrapper as string;
-          if (wrapperPage) {
-            if (me.state.entryScripts[wrapperPage] != undefined) {
-              if (me.verbose) {
-                log(
-                  chalk.yellow(
-                    "appending wrapper entry script from '" +
-                      wrapperPage +
-                      "' for '" +
-                      pageName +
-                      "'"
-                  )
-                );
-              }
-              entryScripts.unshift(
-                "// entry script: " +
-                  wrapperPage +
-                  "\n" +
-                  me.state.entryScripts[wrapperPage]
-              );
-            }
-          }
-          wrapperRef = wrapperPage;
-        }
-        if (entryScripts.length) {
-          const script = entryScripts.join("\n");
-          const scriptName = me.getEntryScriptName(path);
-          me.writeEntryScript(pageName, script, path, scriptName + ".js");
-        }
-        if (!isYield && toRender == 0) {
+        // else subtract from todo list
+        toRender--;
+        if (toRender == 0) {
           resolve();
         }
       };
 
-      if (toGenerate.length == 0) {
+      if (toRender == 0) {
         log(chalk.yellow("\nNothing to do.  Will wait for changes."));
         resolve();
         return;
       }
 
-      const generateSimple = (name: string, path: string) => {
+      const generateSimple = (pageName: string, path: string) => {
         // Generate a page that does not have a generate script
         // or returns no page creation data from it
+        delete me.state.toGenerate[pageName]; // mark completed
         const data = {
-          global: me.getGlobalDataAccessProxy(name),
-          ...me.state.frontMatter[name],
+          global: me.getGlobalDataAccessProxy(pageName),
+          ...me.state.frontMatter[pageName],
         };
-        me.renderTemplate(name, path, data)
+        me.renderTemplate(pageName, path, data)
           .then((fixedPath) => {
-            checkDone(name, fixedPath);
+            checkDone(pageName, fixedPath);
           })
           .catch(() => {
-            checkDone(name);
+            checkDone(pageName);
           });
       };
 
       toGenerate.forEach((generateData: ToGenerateData) => {
         if (me.getGenerateScript(generateData.name)) {
+          let rendered = 0;
           let pinger = new Pinger(
             generateData.name,
             (id: string) => {
@@ -715,41 +719,46 @@ export class AirFry {
             },
             3000
           );
-          // found a generate script -> run it
-          const generateSuccess = (
-            isYield: boolean,
-            response: GeneratorResponse
-          ) => {
+          const generateDone = (response: GeneratorResponse) => {
             pinger.stop();
             log(chalk.yellowBright("Generator Resolved: " + generateData.name));
+
+            if (rendered == 0) {
+              if (me.verbose) {
+                log(
+                  chalk.yellow(
+                    "Generate script " +
+                      generateData.name +
+                      " requested zero pages to render"
+                  )
+                );
+              }
+            }
+
             // callback on generate script complete
-            const generate = response.generate;
             me.processGeneratorResponse(
               response,
               generateData.name,
               me.getCacheName(generateData.name)
             );
+            delete me.state.toGenerate[generateData.name]; // mark completed
+            checkDone(generateData.name, "");
+          };
+
+          const generatePages = (response: GeneratorPages) => {
+            log(
+              chalk.yellowBright(
+                "Generating batch pages for: " + generateData.name
+              )
+            );
+            const generate = response.generate;
             let pages: PageGenerateRequest[];
-            if (!generate) {
-              if (isYield) {
-                throw new Error(
-                  "Must request at least generate page with yield: " +
-                    generateData.name
-                );
-              }
-              // script didn't specify anything for generate
-              // use front matter only
-              generateSimple(generateData.name, generateData.generate);
-              return;
-            } else if (!Array.isArray(generate)) {
+            if (!Array.isArray(generate)) {
               // script specified a single page to generate
               pages = [generate as PageGenerateRequest];
             } else {
               // script specified an array of pages to generate
               pages = generate;
-              if (!isYield) {
-                toRender += pages.length - 1; // account for extra pages
-              }
             }
             const pathStars = (generateData.generate.match(/\*/g) || []).length;
             if (pathStars > 1) {
@@ -773,8 +782,8 @@ export class AirFry {
                     )
                   );
                 }
-                checkDone(generateData.name, "", isYield);
               } else {
+                toRender += pages.length; // add extra pages to todo list
                 pages.forEach((generatePageRequest: PageGenerateRequest) => {
                   const data = {
                     global: me.getGlobalDataAccessProxy(generateData.name),
@@ -787,10 +796,11 @@ export class AirFry {
                   );
                   me.renderTemplate(generateData.name, starReplacedPath, data)
                     .then((fixedPath) => {
-                      checkDone(generateData.name, fixedPath, isYield);
+                      rendered++;
+                      checkDone(generateData.name, fixedPath);
                     })
                     .catch(() => {
-                      checkDone(generateData.name, "", isYield);
+                      checkDone(generateData.name, "");
                     });
                 });
               }
@@ -807,20 +817,20 @@ export class AirFry {
           const inputs = {
             triggeredBy: generateData.triggeredBy,
             frontMatter: me.state.frontMatter[generateData.name],
+            global: me.getGlobalDataAccessProxy(generateData.name),
           };
           const code =
-            "((require, resolve, reject, yield, inputs, global, getDataFileNames, cache, log, frontMatterParse, dataDir) =>  {" +
+            "((require, resolve, reject, generate, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir) =>  {" +
             me.getGenerateScript(generateData.name) +
             "})";
           me.expireCache();
           try {
             vm.runInThisContext(code)(
               require,
-              generateSuccess.bind(me, true), // render array of pages and finish
+              generateDone, // set done
               generateError,
-              generateSuccess.bind(me, false), // render array of pages and continue
+              generatePages, // render array of pages and continue
               inputs,
-              me.getGlobalDataAccessProxy(generateData.name),
               me.getDataFileNames.bind(me, generateData.name),
               me.state.cache[me.getCacheName(generateData.name)],
               me.scriptLogger.bind(null, generateData.name),
