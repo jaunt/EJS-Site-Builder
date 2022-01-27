@@ -16,9 +16,9 @@ wrapper: wrappers/alternate
   const checkDone = () => {
     remaining--;
     if (remaining == 0) {
-      resolve({
-        generate: pages,
-      });
+      // try generating all in one call
+      generate(pages);
+      resolve();
     }
   };
 

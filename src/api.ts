@@ -119,9 +119,7 @@ type PageGenerateRequest = {
   data: PageData;
 };
 
-type GeneratorPages = {
-  generate: PageGenerateRequest[] | PageGenerateRequest;
-};
+type GeneratorPages = PageGenerateRequest[] | PageGenerateRequest;
 
 type GeneratorResponse = {
   cache: CacheData;
@@ -384,6 +382,13 @@ export class AirFry {
     return path;
   }
 
+  protected markDependsOn(template: string, dependency: string) {
+    if (!this.state.templateDepTree[dependency]) {
+      this.state.templateDepTree[dependency] = {};
+    }
+    this.state.templateDepTree[dependency][template] = true;
+  }
+
   protected writeEntryScript(
     template: string,
     script: string,
@@ -459,10 +464,13 @@ export class AirFry {
   /// Deal with returned promise such as cache, site data, and dependency requests
   /// -----------------------------------------------------------------------------
   protected processGeneratorResponse(
-    response: GeneratorResponse,
+    response: GeneratorResponse | undefined,
     name: PageName,
     cacheName: string
   ): void {
+    if (!response) {
+      return;
+    }
     if (response.cache) {
       // page is requesting to update its cache
       this.state.cache[cacheName] = response.cache;
@@ -562,22 +570,24 @@ export class AirFry {
     return new Promise(function (resolve, reject) {
       try {
         const renderInclude = function (
-          source: TemplateName, // template that included us
+          wrapStack: string[], // stack of wrappers
           passedData: PageData, // from front matter, global, etc
           current: TemplateName, // included template
           includeData?: PageData // passed with ejs include
         ): string {
           _progress = current;
-          if (source != "") {
-            // Check for _body include
-            if (current == "_body") {
-              current = source;
+
+          // Check for _body include
+          if (current == "_body") {
+            if (wrapStack.length == 0) {
+              throw new Error(
+                "Wrapper " + template + " was not wrapping anything"
+              );
             }
-            // make source depend on current
-            if (!me.state.templateDepTree[current]) {
-              me.state.templateDepTree[current] = {};
-            }
-            me.state.templateDepTree[current][source] = true;
+            current = wrapStack.pop() as string;
+          } else {
+            // template depends on this dependency
+            me.markDependsOn(template, current);
           }
 
           // combine data from passed, current front matter, and passed with include
@@ -587,26 +597,11 @@ export class AirFry {
             ...(includeData || {}),
           };
 
-          // check dependency has a wrapper
-          if (me.state.frontMatter[current].wrapper) {
-            const wrapper = me.state.frontMatter[current].wrapper as string;
-            // render wrapper where _body gets redirected back to this template.
-            if (!me.state.templateDepTree[wrapper]) {
-              me.state.templateDepTree[wrapper] = {};
-            }
-            me.state.templateDepTree[wrapper][template] = true;
-            return me.state.templates[wrapper](
-              renderData,
-              undefined,
-              renderInclude.bind(null, wrapper, renderData)
-            );
-          } else {
-            return me.state.templates[current](
-              renderData,
-              undefined,
-              renderInclude.bind(null, current, renderData)
-            );
-          }
+          return me.state.templates[current](
+            renderData,
+            undefined,
+            renderInclude.bind(null, wrapStack, renderData)
+          );
         };
 
         path = me.fixPath(path);
@@ -626,8 +621,24 @@ export class AirFry {
           ...data,
         };
 
-        // render our template as base of dependency tree
-        const html = renderInclude("", renderData, template);
+        // Wrappers render where _body gets redirected back to wrapped template.
+        // Support nested wrapping.
+        let wrapper = template;
+        let wrapCheck = wrapper;
+        let wrapStack = [];
+        while (me.state.frontMatter[wrapCheck].wrapper) {
+          wrapper = me.state.frontMatter[wrapCheck].wrapper as string;
+          // template depends on this wrapper
+          me.markDependsOn(template, wrapper);
+          wrapStack.push(wrapCheck);
+          wrapCheck = wrapper;
+        }
+
+        const html = me.state.templates[wrapper](
+          renderData,
+          undefined,
+          renderInclude.bind(null, wrapStack, renderData)
+        );
 
         const writePath = "./" + fspath.join(me.outputDir, "/", path);
         if (!fs.existsSync(writePath)) {
@@ -729,10 +740,20 @@ export class AirFry {
                   chalk.yellow(
                     "Generate script " +
                       generateData.name +
-                      " requested zero pages to render"
+                      " requested zero pages to render.  Checking for absolute generate path"
                   )
                 );
               }
+              const pathStars = (generateData.generate.match(/\*/g) || [])
+                .length;
+              if (pathStars > 0) {
+                throw new Error(
+                  "If no page requests are made, the generate path of the template must be defined without a * " +
+                    generateData.name
+                );
+              }
+              toRender++; // need to generate just one page
+              generateSimple(generateData.name, generateData.generate);
             }
 
             // callback on generate script complete
@@ -751,14 +772,13 @@ export class AirFry {
                 "Generating batch pages for: " + generateData.name
               )
             );
-            const generate = response.generate;
             let pages: PageGenerateRequest[];
-            if (!Array.isArray(generate)) {
+            if (!Array.isArray(response)) {
               // script specified a single page to generate
-              pages = [generate as PageGenerateRequest];
+              pages = [response as PageGenerateRequest];
             } else {
               // script specified an array of pages to generate
-              pages = generate;
+              pages = response as PageGenerateRequest[];
             }
             const pathStars = (generateData.generate.match(/\*/g) || []).length;
             if (pathStars > 1) {
@@ -964,10 +984,7 @@ export class AirFry {
         const dependency = match[1];
         this.state.generateScriptRefs[name] = dependency;
         // add source of generate script as a dependency
-        if (!this.state.templateDepTree[dependency]) {
-          this.state.templateDepTree[dependency] = {};
-        }
-        this.state.templateDepTree[dependency][name] = true;
+        this.markDependsOn(name, dependency);
       } else {
         logError(
           chalk.red(

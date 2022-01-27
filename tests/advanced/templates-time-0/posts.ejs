@@ -34,14 +34,13 @@ wrapper: wrappers/main
 
   // maybe we want post data as json to be injested by a javascript component...
   siteData = {};
-  postData = []
-
   siteData["posts/data.json"] = {
     "Hello": "There"
   }
 
+  generate(posts); // call as many times as we need with 1 or more requests
+
   resolve({
-    generate: posts,
     siteFiles: siteData,
     watchGlobs: ["blog/*.html"],
   });

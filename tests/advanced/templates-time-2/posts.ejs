@@ -43,8 +43,9 @@ wrapper: wrappers/main
   });
   siteData["posts/data.json"] = postData
 
+  generate(posts);
+
   resolve({
-    generate: posts,
     siteFiles: siteData,
     watchGlobs: ["blog/*.html"],
   });

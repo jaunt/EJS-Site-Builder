@@ -14,12 +14,12 @@
     },
     {
       "name": "Launch CliFry",
-      "program": "${workspaceFolder}/src/clifry.ts",
+      "program": "${workspaceFolder}/node_modules/@danglingdev/clifry/lib/clifry.js",
       "request": "launch",
       "preLaunchTask": "build",
       "skipFiles": ["<node_internals>/**"],
       "type": "pwa-node",
-      "args": ["-t", "advanced"]
+      "args": ["-t", "advanced", "-n", "${workspaceFolder}/lib/cli.js"]
     }
   ]
 }

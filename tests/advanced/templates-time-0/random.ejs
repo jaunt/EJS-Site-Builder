@@ -8,31 +8,27 @@ fromPage: I am random
 
 <script generate>
   // test some async generation
-  const toGenerate = 3;
-
-  const pages = [];
+  const toGenerate = 5;
 
   let remaining = toGenerate;
 
-  const checkDone = () => {
+  const checkDone = (request) => {
+    generate(request); // request this page be created
     remaining--;
     if (remaining == 0) {
-      resolve({
-        generate: pages,
-      });
+      resolve(); // we're done
     }
   };
 
   for (let i = 0; i < toGenerate; i++) {
     setTimeout(() => {
-      pages.push({
+      checkDone({
         path: "page" + i.toString(),
         data: {
           myData: "hello " + i,
           title: i.toString(),
         },
       });
-      checkDone();
     }, Math.floor(Math.random() * 100));
   }
 </script>

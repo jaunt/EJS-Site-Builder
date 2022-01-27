@@ -103,7 +103,7 @@ const test = (CliFry) => {
       await testRun.start(100);
 
       // STEP 4, wait for airfry to be done initial run.
-      await testRun.untilStdoutIncludes("Watching for changes", 5000);
+      await testRun.untilStdoutIncludes("Watching for changes"); //, 5000);
       // and a bit in case file system is writing?
       await testRun.sleep(100);
 
@@ -122,7 +122,7 @@ const test = (CliFry) => {
       for (let i = 1; i <= lastTest; i++) {
         testRun.log("\n\nSTARTING SUBTEST " + i + "\n");
         copyInputs(testRun, i);
-        await testRun.sleep(100);
+        await testRun.sleep(100000);
         await testRun.untilOutputIdleSeconds(2, 5000);
         if (!outputMatchesExpected(testRun, i)) {
           reject("Failed to match expected at time " + i);
