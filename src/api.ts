@@ -556,9 +556,9 @@ export class AirFry {
   }
 
   /// -----------------------------------------------------------------------------
-  /// renderTemplateV2
+  /// renderTemplate
   ///
-  /// recursively render a template and all its children to disk
+  /// recursively render a template and all its children / wrappers to disk
   /// -----------------------------------------------------------------------------
   protected renderTemplate(
     template: TemplateName,
@@ -569,14 +569,13 @@ export class AirFry {
     const me = this;
     return new Promise(function (resolve, reject) {
       try {
-        const renderInclude = function (
+        const renderRecursive = function (
           wrapStack: string[], // stack of wrappers
           passedData: PageData, // from front matter, global, etc
           current: TemplateName, // included template
           includeData?: PageData // passed with ejs include
         ): string {
           _progress = current;
-
           // Check for _body include
           if (current == "_body") {
             if (wrapStack.length == 0) {
@@ -588,8 +587,20 @@ export class AirFry {
           } else {
             // template depends on this dependency
             me.markDependsOn(template, current);
+            // Wrappers render where _body gets redirected back to wrapped template.
+            // Support nested wrapping.
+            let wrapper = current;
+            let wrapCheck = wrapper;
+            wrapStack = [];
+            while (me.state.frontMatter[wrapCheck].wrapper) {
+              wrapper = me.state.frontMatter[wrapCheck].wrapper as string;
+              // current depends on this wrapper
+              me.markDependsOn(current, wrapper);
+              wrapStack.push(wrapCheck);
+              wrapCheck = wrapper;
+            }
+            current = wrapper;
           }
-
           // combine data from passed, current front matter, and passed with include
           const renderData = {
             ...passedData,
@@ -600,7 +611,7 @@ export class AirFry {
           return me.state.templates[current](
             renderData,
             undefined,
-            renderInclude.bind(null, wrapStack, renderData)
+            renderRecursive.bind(null, wrapStack, renderData)
           );
         };
 
@@ -621,24 +632,7 @@ export class AirFry {
           ...data,
         };
 
-        // Wrappers render where _body gets redirected back to wrapped template.
-        // Support nested wrapping.
-        let wrapper = template;
-        let wrapCheck = wrapper;
-        let wrapStack = [];
-        while (me.state.frontMatter[wrapCheck].wrapper) {
-          wrapper = me.state.frontMatter[wrapCheck].wrapper as string;
-          // template depends on this wrapper
-          me.markDependsOn(template, wrapper);
-          wrapStack.push(wrapCheck);
-          wrapCheck = wrapper;
-        }
-
-        const html = me.state.templates[wrapper](
-          renderData,
-          undefined,
-          renderInclude.bind(null, wrapStack, renderData)
-        );
+        const html = renderRecursive([], renderData, template);
 
         const writePath = "./" + fspath.join(me.outputDir, "/", path);
         if (!fs.existsSync(writePath)) {
@@ -814,9 +808,9 @@ export class AirFry {
                     /\*/,
                     generatePageRequest.path
                   );
+                  rendered++;
                   me.renderTemplate(generateData.name, starReplacedPath, data)
                     .then((fixedPath) => {
-                      rendered++;
                       checkDone(generateData.name, fixedPath);
                     })
                     .catch(() => {
