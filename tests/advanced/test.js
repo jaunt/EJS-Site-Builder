@@ -120,9 +120,9 @@ const test = (CliFry) => {
       //  copy output to output-time-N compare with expected-time-N
       // }
       for (let i = 1; i <= lastTest; i++) {
+        await testRun.readline("Press enter to continue.");
         testRun.log("\n\nSTARTING SUBTEST " + i + "\n");
         copyInputs(testRun, i);
-        await testRun.sleep(100000);
         await testRun.untilOutputIdleSeconds(2, 5000);
         if (!outputMatchesExpected(testRun, i)) {
           reject("Failed to match expected at time " + i);

@@ -20,6 +20,8 @@ for (let key in output) {
   all.push(...Object.entries(output[key]));
 }
 
+console.log(all);
+
 resolve({
   siteFiles: {
     "multipage.json": all.length,
