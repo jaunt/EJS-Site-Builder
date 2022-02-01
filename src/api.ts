@@ -70,10 +70,17 @@ type CompiledTemplate = {
   [key: PageName]: ejs.ClientFunction;
 };
 
+export enum TriggerReason {
+  Added,
+  Modified,
+  Deleted,
+}
+
 type ToGenerateData = {
   name: PageName;
   generate: string;
   triggeredBy: string;
+  reason: TriggerReason;
 };
 
 type ToGenerate = {
@@ -672,7 +679,6 @@ export class AirFry {
     const me = this;
     return new Promise(function (resolve, _) {
       let toGenerate = Object.values(me.state.toGenerate);
-
       let toRender = toGenerate.length; // todo list count
 
       const checkDone = (pageName: PageName, outPath: string = "") => {
@@ -696,7 +702,6 @@ export class AirFry {
       const generateSimple = (pageName: string, path: string) => {
         // Generate a page that does not have a generate script
         // or returns no page creation data from it
-        delete me.state.toGenerate[pageName]; // mark completed
         const data = {
           global: me.getGlobalDataAccessProxy(pageName),
           ...me.state.frontMatter[pageName],
@@ -711,6 +716,7 @@ export class AirFry {
       };
 
       toGenerate.forEach((generateData: ToGenerateData) => {
+        delete me.state.toGenerate[generateData.name]; // mark completed
         if (me.getGenerateScript(generateData.name)) {
           let rendered = 0;
           let pinger = new Pinger(
@@ -756,7 +762,6 @@ export class AirFry {
               generateData.name,
               me.getCacheName(generateData.name)
             );
-            delete me.state.toGenerate[generateData.name]; // mark completed
             checkDone(generateData.name, "");
           };
 
@@ -828,8 +833,26 @@ export class AirFry {
           if (!me.state.cache[me.getCacheName(generateData.name)]) {
             me.state.cache[me.getCacheName(generateData.name)] = {};
           }
+
+          let reason = "";
+          if (generateData.triggeredBy) {
+            switch (generateData.reason) {
+              case TriggerReason.Added:
+                reason = "Added";
+              case TriggerReason.Modified:
+                reason = "Modified";
+              case TriggerReason.Deleted:
+                reason = "Deleted";
+            }
+          }
+
           const inputs = {
-            triggeredBy: generateData.triggeredBy,
+            triggeredBy: generateData.triggeredBy
+              ? {
+                  path: generateData.triggeredBy,
+                  reason: reason,
+                }
+              : undefined,
             frontMatter: me.state.frontMatter[generateData.name],
             global: me.getGlobalDataAccessProxy(generateData.name),
           };
@@ -890,13 +913,18 @@ export class AirFry {
   ///
   /// Mark a page to be generated
   /// -----------------------------------------------------------------------------
-  protected cueGeneration(name: PageName, triggeredBy = ""): void {
+  protected cueGeneration(
+    name: PageName,
+    triggeredBy = "",
+    reason = TriggerReason.Modified
+  ): void {
     const generate = this.state.frontMatter[name].generate as string;
     if (generate) {
       this.state.toGenerate[name] = {
         name: name,
         generate: generate,
         triggeredBy: triggeredBy,
+        reason: reason,
       };
     }
   }
@@ -1039,6 +1067,29 @@ export class AirFry {
       return name;
     }
     return undefined;
+  }
+
+  /// -----------------------------------------------------------------------------
+  /// processDeletedTemplatePromise
+  ///
+  /// Remove template from site data
+  /// -----------------------------------------------------------------------------
+  public processDeletedTemplatePromise(template: string): void {
+    // clean up template state
+    delete this.state.generateScripts[template];
+    delete this.state.generateScriptRefs[template];
+    delete this.state.entryScripts[template];
+    for (let key in this.state.pathDepTree) {
+      delete this.state.pathDepTree[key][template];
+    }
+    for (let key in this.state.wildDepTree) {
+      delete this.state.wildDepTree[key][template];
+    }
+    delete this.state.globalDeps[template];
+    delete this.state.frontMatter[template];
+    delete this.state.toGenerate[template];
+    delete this.state.cache[this.getCacheName(template)];
+    delete this.state.outputData.outData[template];
   }
 
   /// -----------------------------------------------------------------------------
@@ -1259,14 +1310,15 @@ export class AirFry {
   /// -----------------------------------------------------------------------------
   public updateDeps(
     dependencies: Dependencies,
-    dependency = ""
+    dependency = "",
+    reason = TriggerReason.Modified
   ): Promise<void> {
     const me = this;
     return new Promise(function (resolve, reject) {
       for (const pageName in dependencies) {
         // tell the generator that this data file
         // has changed in case it can be efficient
-        me.cueGeneration(pageName, dependency);
+        me.cueGeneration(pageName, dependency, reason);
       }
       const toGenerate = Object.values(me.state.toGenerate);
       if (toGenerate.length) {

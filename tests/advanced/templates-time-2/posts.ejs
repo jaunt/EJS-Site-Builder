@@ -17,7 +17,7 @@ wrapper: wrappers/main
   if (!inputs.triggeredBy) {
     posts = getDataFileNames("blog/*.html"); // can use glob.
   } else {
-    posts = [inputs.triggeredBy];
+    posts = [inputs.triggeredBy.path];
   }
 
   posts = posts.map((filepath) => {

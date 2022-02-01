@@ -1,6 +1,7 @@
 const Diff2html = require("diff2html");
 const { execFileSync } = require("child_process");
 const fs = require("fs-extra");
+const output = require("fs-extra/lib/output");
 
 const diff2htmlstyle = `
 <!-- CSS -->
@@ -103,12 +104,22 @@ const test = (CliFry) => {
       await testRun.start(100);
 
       // STEP 4, wait for airfry to be done initial run.
-      await testRun.untilStdoutIncludes("Watching for changes"); //, 5000);
+      await testRun.untilStdoutIncludes("Watching for changes", 5000);
       // and a bit in case file system is writing?
-      await testRun.sleep(100);
+      await testRun.sleep(200);
+
+      let errOut = testRun.getStdout();
+      let errorCount = 0;
+      errOut.forEach((line) => {
+        if (line.includes("[ERROR]")) errorCount++;
+      });
+      if (errorCount > 0) {
+        reject("Test had " + errorCount + " errors.");
+        return;
+      }
 
       if (!outputMatchesExpected(testRun, 0)) {
-        reject("Failed to match expected at time " + 0);
+        reject("Failed to match expected at time 0");
         return;
       }
 
@@ -124,6 +135,16 @@ const test = (CliFry) => {
         testRun.log("\n\nSTARTING SUBTEST " + i + "\n");
         copyInputs(testRun, i);
         await testRun.untilOutputIdleSeconds(2, 5000);
+
+        let errOut = testRun.getStdout();
+        let errorCount = 0;
+        errOut.forEach((line) => {
+          if (line.includes("[ERROR]")) errorCount++;
+        });
+        if (errorCount > 0) {
+          reject("Test had " + errorCount + " errors.");
+          return;
+        }
         if (!outputMatchesExpected(testRun, i)) {
           reject("Failed to match expected at time " + i);
           return;

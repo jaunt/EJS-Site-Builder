@@ -17,6 +17,7 @@ import {
   POST_GENERATE_JS,
   POST_GENERATE_NAME,
   Dependencies,
+  TriggerReason,
 } from "./api";
 
 // this is only safe because airfry is a stand-alone cli, not a module
@@ -252,7 +253,7 @@ if (!watchOnly) {
           if (p.startsWith(check.prefix)) {
             return {
               kind: check.kind,
-              name: p.substr(check.prefix.length + 1),
+              name: p.slice(check.prefix.length + 1),
             };
           }
         }
@@ -266,7 +267,10 @@ if (!watchOnly) {
 
       let deps: Dependencies = {};
 
-      const queueChange = (p: string) => {
+      const queueChange = (
+        p: string,
+        reason: TriggerReason = TriggerReason.Modified
+      ) => {
         pinger.restart();
         const check = getKind(p);
         if (check.kind == PRE_GENERATE_NAME) {
@@ -291,40 +295,53 @@ if (!watchOnly) {
               log(error);
             });
         } else if (check.kind == "template") {
-          // step 1. update the template itself,
-          airfry
-            .processTemplateFilesPromise(airfry.getTemplateFileName(check.name))
-            .then((updateList) => {
-              log("Template Updated: " + p);
-              // render it:
-              // step 2. ... then any other templates depending on it
-              deps = { ...deps, ...airfry.getTemplateDeps(updateList[0]) };
-              log("Ready to update deps:");
-              log(JSON.stringify(deps));
-            })
-            .catch((error) => {
-              logError("Template update error: ", error);
-            });
+          if (
+            reason == TriggerReason.Added ||
+            reason == TriggerReason.Modified
+          ) {
+            // step 1. update the template itself,
+            airfry
+              .processTemplateFilesPromise(
+                airfry.getTemplateFileName(check.name)
+              )
+              .then((updateList) => {
+                log("Template Updated: " + p);
+                // render it:
+                // step 2. ... then any other templates depending on it
+                deps = { ...deps, ...airfry.getTemplateDeps(updateList[0]) };
+                log("Ready to update deps:");
+                log(JSON.stringify(deps));
+              })
+              .catch((error) => {
+                logError("Template update error: ", error);
+              });
+          } else if (reason == TriggerReason.Deleted) {
+            // step 1. clean up the template.  this will surely
+            // produce errors from anything depending on it.
+            airfry.processDeletedTemplatePromise(
+              airfry.getTemplateFileName(check.name)
+            );
+          }
         } else if (check.kind == "data") {
           // when it's data, we need to process separately for
           // every file in case a generator can rebuild for a single file.
           const dataFileName = fspath.resolve(dataDir + "/" + check.name);
           const dataDeps = airfry.getDataDeps(dataFileName);
-          airfry.updateDeps(dataDeps, dataFileName);
+          airfry.updateDeps(dataDeps, dataFileName, reason);
         }
       };
 
       watcher
         .on("add", (p: string) => {
-          queueChange(p);
+          queueChange(p, TriggerReason.Added);
         })
         .on("change", (p) => {
-          queueChange(p);
+          queueChange(p, TriggerReason.Added);
         })
         .on("unlink", (p) => {
           log(`${p} has been removed`);
           // deleting dependencies will likely cause parents to complain!
-          queueChange(p);
+          queueChange(p, TriggerReason.Deleted);
         })
         .on("unlinkDir", (path) => log(`Directory ${path} has been removed`));
 
