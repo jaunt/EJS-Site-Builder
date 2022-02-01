@@ -735,25 +735,32 @@ export class AirFry {
             log(chalk.yellowBright("Generator Resolved: " + generateData.name));
 
             if (rendered == 0) {
-              if (me.verbose) {
-                log(
-                  chalk.yellow(
-                    "Generate script " +
-                      generateData.name +
-                      " requested zero pages to render.  Checking for absolute generate path"
-                  )
-                );
-              }
               const pathStars = (generateData.generate.match(/\*/g) || [])
                 .length;
               if (pathStars > 0) {
-                throw new Error(
-                  "If no page requests are made, the generate path of the template must be defined without a * " +
-                    generateData.name
-                );
+                if (me.verbose) {
+                  log(
+                    chalk.yellowBright(
+                      "Generate script '" +
+                        generateData.name +
+                        "' requested no pages.  Ignoring."
+                    )
+                  );
+                }
+              } else {
+                if (me.verbose) {
+                  log(
+                    chalk.yellow(
+                      "Rendering template " +
+                        generateData.name +
+                        " with absolute generate path after running its generate script."
+                    )
+                  );
+                }
+
+                toRender++; // need to generate just one page
+                generateSimple(generateData.name, generateData.generate);
               }
-              toRender++; // need to generate just one page
-              generateSimple(generateData.name, generateData.generate);
             }
 
             // callback on generate script complete
