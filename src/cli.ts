@@ -336,7 +336,7 @@ if (!watchOnly) {
           queueChange(p, TriggerReason.Added);
         })
         .on("change", (p) => {
-          queueChange(p, TriggerReason.Added);
+          queueChange(p, TriggerReason.Modified);
         })
         .on("unlink", (p) => {
           log(`${p} has been removed`);

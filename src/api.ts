@@ -846,10 +846,13 @@ export class AirFry {
             switch (generateData.reason) {
               case TriggerReason.Added:
                 reason = "Added";
+                break;
               case TriggerReason.Modified:
                 reason = "Modified";
+                break;
               case TriggerReason.Deleted:
                 reason = "Deleted";
+                break;
             }
           }
 
