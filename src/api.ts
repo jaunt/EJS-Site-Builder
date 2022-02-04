@@ -111,6 +111,7 @@ type GeneratorDataOutput = {
 type FilesWritten = {
   source: string;
   path: string;
+  time: string;
 };
 
 type OutputData = {
@@ -155,6 +156,11 @@ type AirFryData = {
 };
 
 type fsFunc = (...args: any[]) => unknown;
+
+function getNowDate(): string {
+  const d = new Date();
+  return d.toISOString();
+}
 
 function safeOutputCheck(
   func: fsFunc,
@@ -279,22 +285,22 @@ export class AirFry {
   /// Caching
   /// -----------------------------------------------------------------------------
   protected expireCache(): void {
-    for (const pageName in this.state.cache) {
-      const pageCache = this.state.cache[pageName];
-      for (const itemName in pageCache) {
-        const expires = pageCache[itemName].expires;
+    for (const cacheName in this.state.cache) {
+      const cacheGroup = this.state.cache[cacheName];
+      for (const itemName in cacheGroup) {
+        const expires = cacheGroup[itemName].expires;
         if (expires) {
           if (!isNaN(expires)) {
             const now = new Date().getTime();
             if (now > expires) {
               log(
-                chalk.green("Expired " + pageName + " cache item: " + itemName)
+                chalk.green("Expired " + cacheName + " cache item: " + itemName)
               );
-              delete pageCache[itemName];
+              delete cacheGroup[itemName];
             }
           } else {
             throw new Error(
-              pageName + " cache item " + itemName + " expires date is invalid"
+              cacheName + " cache item " + itemName + " expires date is invalid"
             );
           }
         }
@@ -407,7 +413,11 @@ export class AirFry {
       this.mkdirSyncSafe(writePath, { recursive: true });
     }
     const p = fspath.resolve(writePath + "/" + name);
-    this.state.outputData.entry.push({ source: template, path: p });
+    this.state.outputData.entry.push({
+      source: template,
+      path: p,
+      time: getNowDate(),
+    });
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
         this.state.errorCount++;
@@ -497,7 +507,11 @@ export class AirFry {
         if (!fs.existsSync(writePath)) {
           this.mkdirSyncSafe(writePath, { recursive: true });
         }
-        this.state.outputData.json.push({ source: name, path: p });
+        this.state.outputData.json.push({
+          source: name,
+          path: p,
+          time: getNowDate(),
+        });
         let writeData;
         if (
           typeof siteFiles[file] === "string" ||
@@ -646,7 +660,11 @@ export class AirFry {
           me.mkdirSyncSafe(writePath, { recursive: true });
         }
         const p = fspath.resolve(writePath + "/index.html");
-        me.state.outputData.html.push({ source: template, path: p });
+        me.state.outputData.html.push({
+          source: template,
+          path: p,
+          time: getNowDate(),
+        });
         me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
           if (err) {
             reject(err);
@@ -681,9 +699,13 @@ export class AirFry {
       let toGenerate = Object.values(me.state.toGenerate);
       let toRender = toGenerate.length; // todo list count
 
-      const checkDone = (pageName: PageName, outPath: string = "") => {
+      const checkDone = (
+        pageName: PageName,
+        generated: Boolean = false,
+        outPath: string = ""
+      ) => {
         // if a page was generated, process any entry scripts
-        if (outPath) {
+        if (generated) {
           me.processEntryScripts(pageName, outPath);
         }
         // else subtract from todo list
@@ -708,7 +730,7 @@ export class AirFry {
         };
         me.renderTemplate(pageName, path, data)
           .then((fixedPath) => {
-            checkDone(pageName, fixedPath);
+            checkDone(pageName, true, fixedPath);
           })
           .catch(() => {
             checkDone(pageName);
@@ -769,7 +791,7 @@ export class AirFry {
               generateData.name,
               me.getCacheName(generateData.name)
             );
-            checkDone(generateData.name, "");
+            checkDone(generateData.name);
           };
 
           const generatePages = (response: GeneratorPages) => {
@@ -823,10 +845,10 @@ export class AirFry {
                   rendered++;
                   me.renderTemplate(generateData.name, starReplacedPath, data)
                     .then((fixedPath) => {
-                      checkDone(generateData.name, fixedPath);
+                      checkDone(generateData.name, true, fixedPath);
                     })
                     .catch(() => {
-                      checkDone(generateData.name, "");
+                      checkDone(generateData.name);
                     });
                 });
               }
@@ -945,6 +967,10 @@ export class AirFry {
   /// Get cache name -- all scripts referring to another script share it's cache
   /// -----------------------------------------------------------------------------
   protected getCacheName(name: PageName): string {
+    return "shared";
+    // ... much more convenient if all pages share the same cache
+    // even though it forces "reusable generate scripts" to uniquely name their cache keys
+    /*
     if (this.state.generateScripts[name]) {
       return "_" + name;
     }
@@ -963,6 +989,7 @@ export class AirFry {
     }
     logError("Unexpected attempt to get cache for non script: " + name);
     return "_ERROR";
+    */
   }
 
   /// -----------------------------------------------------------------------------
@@ -1046,7 +1073,11 @@ export class AirFry {
         });
       }
       const p = fspath.resolve(this.outputDir + libDir + "/" + name + ".js");
-      this.state.outputData.lib.push({ source: name, path: p });
+      this.state.outputData.lib.push({
+        source: name,
+        path: p,
+        time: getNowDate(),
+      });
       this.writeFileSafe(
         p,
         stripped,
@@ -1213,7 +1244,7 @@ export class AirFry {
           me.processGeneratorResponse(
             response,
             PRE_GENERATE_JS,
-            PRE_GENERATE_NAME
+            me.getCacheName(PRE_GENERATE_NAME)
           );
           resolve();
         };
@@ -1224,8 +1255,8 @@ export class AirFry {
           reject(error);
         };
         const script = fs.readFileSync(g, "utf8");
-        if (!me.state.cache[PRE_GENERATE_NAME]) {
-          me.state.cache[PRE_GENERATE_NAME] = {};
+        if (!me.state.cache[me.getCacheName(PRE_GENERATE_NAME)]) {
+          me.state.cache[me.getCacheName(PRE_GENERATE_NAME)] = {};
         }
         const code =
           "((require, resolve, reject, cache, log, dataDir) =>  {" +
@@ -1236,7 +1267,7 @@ export class AirFry {
             require,
             generateSuccess,
             generateError,
-            me.state.cache[PRE_GENERATE_NAME],
+            me.state.cache[me.getCacheName(PRE_GENERATE_NAME)],
             me.scriptLogger.bind(null, PRE_GENERATE_NAME),
             fspath.resolve(me.dataDir)
           );
@@ -1276,7 +1307,7 @@ export class AirFry {
           me.processGeneratorResponse(
             response,
             POST_GENERATE_JS,
-            POST_GENERATE_NAME
+            me.getCacheName(POST_GENERATE_NAME)
           );
           resolve();
         };
@@ -1287,8 +1318,11 @@ export class AirFry {
           reject(error);
         };
         const script = fs.readFileSync(g, "utf8");
+        if (!me.state.cache[me.getCacheName(POST_GENERATE_NAME)]) {
+          me.state.cache[me.getCacheName(POST_GENERATE_NAME)] = {};
+        }
         const code =
-          "((require, resolve, reject, output, log, dataDir) =>  {" +
+          "((require, resolve, reject, cache, output, log, dataDir) =>  {" +
           script +
           "})";
         try {
@@ -1296,6 +1330,7 @@ export class AirFry {
             require,
             generateSuccess,
             generateError,
+            me.state.cache[me.getCacheName(POST_GENERATE_NAME)],
             me.state.outputData,
             me.scriptLogger.bind(null, POST_GENERATE_NAME),
             fspath.resolve(me.dataDir)

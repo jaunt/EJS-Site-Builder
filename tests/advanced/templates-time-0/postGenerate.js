@@ -17,11 +17,23 @@ const path = require("path");
 // hack to make sure we get the same output on every test
 let all = [];
 for (let key in output) {
-  all.push(...Object.entries(output[key]));
+  all.push(...Object.values(output[key]));
 }
+
+all = all.map((item) => item.source);
+
+all.sort((a, b) => {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+});
 
 resolve({
   siteFiles: {
-    "multipage.json": all.length,
+    "multipage.json": all,
   },
 });
