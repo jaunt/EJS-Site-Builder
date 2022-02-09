@@ -104,7 +104,7 @@ const test = (CliFry) => {
       await testRun.start(200);
 
       // STEP 4, wait for airfry to be done initial run.
-      await testRun.untilStdoutIncludes("Watching for changes"); //, 5000);
+      await testRun.untilStdoutIncludes("Watching for changes");
       // and a bit in case file system is writing?
       await testRun.sleep(300);
 
@@ -134,6 +134,9 @@ const test = (CliFry) => {
         //await testRun.readline("Press enter to continue.");
         testRun.log("\n\nSTARTING SUBTEST " + i + "\n");
         copyInputs(testRun, i);
+
+        await testRun.untilStdoutIncludes("Processing");
+
         await testRun.untilOutputIdleSeconds(3, 5000);
 
         let errOut = testRun.getStdout();
