@@ -27,13 +27,12 @@
     "typescript": "^4.4.4"
   },
   "dependencies": {
-    "@danglingdev/clifry": "^0.0.11",
-    "@danglingdev/shared-ts": "^0.0.5",
+    "@danglingdev/clifry": "^0.0.12",
+    "@danglingdev/shared-ts": "^0.0.7",
     "@types/ejs": "^3.1.0",
     "@types/micromatch": "^4.0.2",
     "@types/nconf": "^0.10.1",
     "axios": "^0.25.0",
-    "chalk": "^4.1.2",
     "chokidar": "^3.5.2",
     "commander": "^8.3.0",
     "diff2html": "^3.4.13",
@@ -43,7 +42,8 @@
     "markdown-it": "^12.3.2",
     "markdown-it-highlightjs": "^3.6.0",
     "micromatch": "^4.0.4",
-    "nconf": "^0.11.3"
+    "nconf": "^0.11.3",
+    "picocolors": "^1.0.0"
   },
   "files": [
     "lib/**/*"

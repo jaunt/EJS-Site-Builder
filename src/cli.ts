@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import fspath from "path";
-import chalk from "chalk";
+import pico from "picocolors";
 const { promises: fs } = require("fs");
 import chokidar from "chokidar";
 import nconf from "nconf";
@@ -25,8 +25,12 @@ const LIB_VERSION = require("../package.json").version;
 
 const BAD_OPTIONS = 3;
 
-console.log(chalk.black.bgWhite.bold("\n Air", chalk.white.bgBlue(" Fry \n")));
-console.log(chalk.blueBright("Version " + LIB_VERSION + "\n"));
+console.log(
+  pico.black(
+    pico.bgWhite(pico.bold("\n Air" + pico.white(pico.bgBlue(" Fry \n"))))
+  )
+);
+console.log(pico.blue("Version " + LIB_VERSION + "\n"));
 
 const loggers = makeLoggers("@ ");
 const log = loggers.log;
@@ -53,9 +57,9 @@ const optionsConfig = nconf.get("options") || {};
 const getOption = (opt: string, def: string): string => {
   if (options[opt] && optionsConfig[opt]) {
     log(
-      chalk.yellow(
+      pico.yellow(
         "Warning, command line argument " +
-          chalk.white(opt) +
+          pico.white(opt) +
           " is overriding option specified in airfry.json"
       )
     );
@@ -64,11 +68,11 @@ const getOption = (opt: string, def: string): string => {
   if (!result) {
     if (options.verbose || optionsConfig.verbose) {
       log(
-        chalk.yellow(
+        pico.yellow(
           "No option specified for " +
-            chalk.white(opt) +
+            pico.white(opt) +
             ", using default value: " +
-            chalk.green(def || "undefined")
+            pico.green(def || "undefined")
         )
       );
     }
@@ -114,7 +118,7 @@ const isOneOrTheOtherRelative = (a: string, b: string): Boolean => {
   const result = isRelative(a, b) || isRelative(b, a);
   if (result) {
     logError(
-      "Directories must not contian each other: " + chalk.white(a + ", " + b)
+      "Directories must not contian each other: " + pico.white(a + ", " + b)
     );
   }
   return result;

@@ -3,7 +3,7 @@ import vm from "vm";
 import fs from "fs";
 import fspath from "path";
 import fm from "front-matter";
-import chalk from "chalk";
+import pico from "picocolors";
 import micromatch from "micromatch";
 
 import {
@@ -265,7 +265,7 @@ export class AirFry {
     }
     if (files.length == 0) {
       logError(
-        chalk.red(
+        pico.red(
           "Warning, " +
             source +
             ".ejs requested data files but none were found at " +
@@ -294,7 +294,7 @@ export class AirFry {
             const now = new Date().getTime();
             if (now > expires) {
               log(
-                chalk.green("Expired " + cacheName + " cache item: " + itemName)
+                pico.green("Expired " + cacheName + " cache item: " + itemName)
               );
               delete cacheGroup[itemName];
             }
@@ -323,10 +323,10 @@ export class AirFry {
     let data = JSON.stringify(this.state.cache);
     if (data) {
       if (!fs.existsSync(this.cacheDir)) {
-        log(chalk.green("Making cache dir: " + p));
+        log(pico.green("Making cache dir: " + p));
         fs.mkdirSync(this.cacheDir, { recursive: true });
       }
-      log(chalk.green("Writing cache: " + p + "/cache.json"));
+      log(pico.green("Writing cache: " + p + "/cache.json"));
       fs.writeFileSync(this.cacheDir + "/cache.json", data);
     }
   }
@@ -352,12 +352,12 @@ export class AirFry {
 
   protected chalkUpError(name: PageName, error: Error): void {
     // Show generate script errors nicely.
-    logError("\nScript Error: " + chalk.bgBlack.red(name));
+    logError("\nScript Error: " + pico.bgBlack(pico.red(name)));
     if (error.message) {
-      log(chalk.bgBlack.white(error.message));
+      log(pico.bgBlack(pico.white(error.message)));
     }
     if (typeof error == "string") {
-      log(chalk.bgBlack.white(error));
+      log(pico.bgBlack(pico.white(error)));
     }
     if (error.stack) {
       try {
@@ -366,14 +366,14 @@ export class AirFry {
         const script = this.getGenerateScript(name).split("\n");
         script.forEach((line, index) => {
           if (index == errorLine) {
-            log(chalk.bgBlack.red(line));
+            log(pico.bgBlack(pico.red(line)));
           } else {
-            log(chalk.bgBlack.blue(line));
+            log(pico.bgBlack(pico.blue(line)));
           }
         });
       } catch {
         this.state.errorCount++;
-        log(chalk.red(error.stack));
+        log(pico.red(error.stack));
       }
     }
   }
@@ -381,7 +381,7 @@ export class AirFry {
   protected scriptLogger(name: PageName): void {
     // Format log messages from generate script.
     const args = Array.from(arguments);
-    log(chalk.yellow(name) + chalk.white(": " + args[1]), ...args.slice(2));
+    log(pico.yellow(name) + pico.white(": " + args[1]), ...args.slice(2));
   }
 
   protected fixPath(path: string): string {
@@ -421,9 +421,9 @@ export class AirFry {
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
         this.state.errorCount++;
-        logError(chalk.red("Error writting: " + p));
+        logError(pico.red("Error writting: " + p));
       } else {
-        log(chalk.magenta("Wrote: " + p));
+        log(pico.magenta("Wrote: " + p));
       }
     });
   }
@@ -434,7 +434,7 @@ export class AirFry {
     let entryScripts: string[] = [];
     if (me.state.entryScripts[pageName] != undefined) {
       if (me.verbose) {
-        log(chalk.yellow("using entry script for '" + pageName + "'"));
+        log(pico.yellow("using entry script for '" + pageName + "'"));
       }
       entryScripts.unshift(
         "// entry script: " + pageName + "\n" + me.state.entryScripts[pageName]
@@ -448,7 +448,7 @@ export class AirFry {
         if (me.state.entryScripts[wrapperPage] != undefined) {
           if (me.verbose) {
             log(
-              chalk.yellow(
+              pico.yellow(
                 "appending wrapper entry script from '" +
                   wrapperPage +
                   "' for '" +
@@ -528,12 +528,12 @@ export class AirFry {
             if (err) {
               this.state.errorCount++;
               logError(
-                chalk.red(
+                pico.red(
                   "Error writing template's siteFiles '" + name + "': '" + p
                 )
               );
             } else {
-              log(chalk.cyanBright("Wrote: " + p));
+              log(pico.cyan("Wrote: " + p));
             }
           }
         );
@@ -669,18 +669,20 @@ export class AirFry {
           if (err) {
             reject(err);
           } else {
-            log(chalk.magenta("Wrote: " + p));
+            log(pico.magenta("Wrote: " + p));
             resolve(path);
           }
         });
       } catch (error) {
         me.state.errorCount++;
         logError(
-          chalk.red.bold(
-            `Error rendering page: ${template}, template: ${_progress}, path: ${path}`
+          pico.red(
+            pico.bold(
+              `Error rendering page: ${template}, template: ${_progress}, path: ${path}`
+            )
           )
         );
-        logError(chalk.red(error));
+        logError(error);
         reject(error);
       }
     });
@@ -716,7 +718,7 @@ export class AirFry {
       };
 
       if (toRender == 0) {
-        log(chalk.yellow("\nNothing to do.  Will wait for changes."));
+        log(pico.yellow("\nNothing to do.  Will wait for changes."));
         resolve();
         return;
       }
@@ -744,17 +746,13 @@ export class AirFry {
           let pinger = new Pinger(
             generateData.name,
             (id: string) => {
-              log(
-                chalk.yellowBright(
-                  "Waiting for generator to call resolve: " + id
-                )
-              );
+              log(pico.yellow("Waiting for generator to call resolve: " + id));
             },
             3000
           );
           const generateDone = (response: GeneratorResponse) => {
             pinger.stop();
-            log(chalk.yellowBright("Generator Resolved: " + generateData.name));
+            log(pico.yellow("Generator Resolved: " + generateData.name));
 
             if (rendered == 0) {
               const pathStars = (generateData.generate.match(/\*/g) || [])
@@ -762,7 +760,7 @@ export class AirFry {
               if (pathStars > 0) {
                 if (me.verbose) {
                   log(
-                    chalk.yellowBright(
+                    pico.yellow(
                       "Generate script '" +
                         generateData.name +
                         "' requested no pages.  Ignoring."
@@ -772,7 +770,7 @@ export class AirFry {
               } else {
                 if (me.verbose) {
                   log(
-                    chalk.yellow(
+                    pico.yellow(
                       "Rendering template " +
                         generateData.name +
                         " with absolute generate path after running its generate script."
@@ -796,9 +794,7 @@ export class AirFry {
 
           const generatePages = (response: GeneratorPages) => {
             log(
-              chalk.yellowBright(
-                "Generating batch pages for: " + generateData.name
-              )
+              pico.yellow("Generating batch pages for: " + generateData.name)
             );
             let pages: PageGenerateRequest[];
             if (!Array.isArray(response)) {
@@ -823,7 +819,7 @@ export class AirFry {
               if (pages.length == 0) {
                 if (me.verbose) {
                   log(
-                    chalk.yellow(
+                    pico.yellow(
                       "Generate script " +
                         generateData.name +
                         " requesting zero pages to render"
@@ -911,7 +907,7 @@ export class AirFry {
             if (error instanceof Error) {
               generateError(error);
             } else {
-              logError(chalk.red("Unknown error " + error));
+              logError(pico.red("Unknown error " + error));
               generateError(new Error("unknown error"));
             }
           }
@@ -935,7 +931,7 @@ export class AirFry {
     } catch (error) {
       this.state.errorCount++;
       logError(
-        chalk.red(`${(error as Error).message?.split("\n")[0]} in ${name}`)
+        pico.red(`${(error as Error).message?.split("\n")[0]} in ${name}`)
       );
     }
   }
@@ -979,7 +975,7 @@ export class AirFry {
       if (this.state.generateScripts[ref]) {
         if (this.verbose) {
           log(
-            chalk.yellow(
+            pico.yellow(
               "using reference cache '" + ref + "' for '" + name + "'"
             )
           );
@@ -1006,7 +1002,7 @@ export class AirFry {
       if (this.state.generateScripts[ref]) {
         if (this.verbose) {
           log(
-            chalk.yellow(
+            pico.yellow(
               "using reference generate script '" + ref + "' for '" + name + "'"
             )
           );
@@ -1046,7 +1042,7 @@ export class AirFry {
         this.markDependsOn(name, dependency);
       } else {
         logError(
-          chalk.red(
+          pico.red(
             "Generate-use script template in: '" +
               name +
               "' not specified correctly.  See: (https://jaunt.github.io/airfry/docs/input/templates)"
@@ -1084,9 +1080,9 @@ export class AirFry {
         (err: NodeJS.ErrnoException | null): void => {
           if (err) {
             this.state.errorCount++;
-            logError(chalk.red(err));
+            logError(err);
           }
-          log(chalk.cyan("Wrote: " + p));
+          log(pico.cyan("Wrote: " + p));
         }
       );
       return true;
@@ -1150,7 +1146,7 @@ export class AirFry {
           list = getAllFiles(me.inputDir);
         } catch (error) {
           me.state.errorCount++;
-          logError(chalk.red("Could not scan " + me.inputDir));
+          logError(pico.red("Could not scan " + me.inputDir));
         }
       } else {
         list = [file];
@@ -1174,7 +1170,7 @@ export class AirFry {
         return;
       }
 
-      log(chalk.green(`Processing ${pending} input files.`));
+      log(pico.green(`Processing ${pending} input files.`));
 
       list.forEach((file: Path) => {
         const name = me.testTemplate(file);
@@ -1232,9 +1228,7 @@ export class AirFry {
         let pinger = new Pinger(
           "preGenerate",
           (id: string) => {
-            log(
-              chalk.yellowBright("Waiting for generator to call resolve: " + id)
-            );
+            log(pico.yellow("Waiting for generator to call resolve: " + id));
           },
           3000
         );
@@ -1273,11 +1267,11 @@ export class AirFry {
           );
         } catch (error) {
           me.state.errorCount++;
-          logError(chalk.red(error));
+          logError(error);
           reject(error);
         }
       } else {
-        log(chalk.blue(PRE_GENERATE_JS + " not found, skipping."));
+        log(pico.blue(PRE_GENERATE_JS + " not found, skipping."));
         resolve(); // no global data
       }
     });
@@ -1296,9 +1290,7 @@ export class AirFry {
         let pinger = new Pinger(
           "postGenerate",
           (id: string) => {
-            log(
-              chalk.yellowBright("Waiting for generator to call resolve: " + id)
-            );
+            log(pico.yellow("Waiting for generator to call resolve: " + id));
           },
           3000
         );
@@ -1337,11 +1329,11 @@ export class AirFry {
           );
         } catch (error) {
           me.state.errorCount++;
-          logError(chalk.red(error));
+          logError(error);
           reject(error);
         }
       } else {
-        log(chalk.blue(POST_GENERATE_JS + " not found, skipping."));
+        log(pico.blue(POST_GENERATE_JS + " not found, skipping."));
         resolve(); // no global data
       }
     });
@@ -1369,7 +1361,7 @@ export class AirFry {
       if (toGenerate.length) {
         me.generatePages()
           .then(() => {
-            log(chalk.green("Dependency Updates Complete."));
+            log(pico.green("Dependency Updates Complete."));
             return me.processPostGenerate();
           })
           .then(() => {
@@ -1377,7 +1369,7 @@ export class AirFry {
           })
           .catch((error) => {
             me.state.errorCount++;
-            logError(chalk.red("Dependency Updates Failed."), error);
+            logError(pico.red("Dependency Updates Failed."), error);
             reject(error);
           });
       }
@@ -1395,20 +1387,20 @@ export class AirFry {
     // first look for direct match:
     dependencies = this.state.pathDepTree[path];
     if (dependencies) {
-      log(chalk.green("Update Triggered by: " + path));
+      log(pico.green("Update Triggered by: " + path));
     } else if (!dependencies) {
       // check for wildcard match
       const wildDeps = Object.keys(this.state.wildDepTree);
       for (let pattern of wildDeps) {
         if (micromatch.isMatch(path, "**/" + pattern)) {
           dependencies = this.state.wildDepTree[pattern];
-          log(chalk.green("Update Triggered by: " + path));
+          log(pico.green("Update Triggered by: " + path));
           break;
         }
       }
     }
     if (!dependencies) {
-      log(chalk.yellow("Info: No dependencies to update for " + path));
+      log(pico.yellow("Info: No dependencies to update for " + path));
     }
     return dependencies;
   }
@@ -1441,7 +1433,7 @@ export class AirFry {
   /// on global data needs to be updated
   /// -----------------------------------------------------------------------------
   getGlobalDeps(): Dependencies {
-    console.log(chalk.green("Update Triggered by preGenerate.js change."));
+    console.log(pico.green("Update Triggered by preGenerate.js change."));
     return this.state.globalDeps;
   }
 }
