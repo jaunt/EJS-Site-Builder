@@ -577,6 +577,56 @@ export class AirFry {
   }
 
   /// -----------------------------------------------------------------------------
+  /// renderRecursive
+  /// Render a template and its children recursively
+  /// -----------------------------------------------------------------------------
+  protected renderRecursive(
+    parent: TemplateName, // orginal template name
+    wrapStack: string[], // stack of wrappers
+    passedData: PageData, // from front matter, global, etc
+    progress: string[], // last template worked on in recursion by ref
+    current: TemplateName, // included template
+    includeData?: PageData // passed with ejs include
+  ): string {
+    progress[0] = current;
+    // Check for _body include
+    if (current == "_body") {
+      if (wrapStack.length == 0) {
+        throw new Error("Wrapper " + parent + " was not wrapping anything");
+      }
+      current = wrapStack.pop() as string;
+    } else {
+      // template depends on this dependency
+      this.markDependsOn(parent, current);
+      // Wrappers render where _body gets redirected back to wrapped template.
+      // Support nested wrapping.
+      let wrapper = current;
+      let wrapCheck = wrapper;
+      wrapStack = [];
+      while (this.state.frontMatter[wrapCheck].wrapper) {
+        wrapper = this.state.frontMatter[wrapCheck].wrapper as string;
+        // current depends on this wrapper
+        this.markDependsOn(current, wrapper);
+        wrapStack.push(wrapCheck);
+        wrapCheck = wrapper;
+      }
+      current = wrapper;
+    }
+    // combine data from passed, current front matter, and passed with include
+    const renderData = {
+      ...passedData,
+      ...(this.state.frontMatter[current] || {}),
+      ...(includeData || {}),
+    };
+
+    return this.state.templates[current](
+      renderData,
+      undefined,
+      this.renderRecursive.bind(null, parent, wrapStack, renderData, progress)
+    );
+  }
+
+  /// -----------------------------------------------------------------------------
   /// renderTemplate
   ///
   /// recursively render a template and all its children / wrappers to disk
@@ -586,56 +636,10 @@ export class AirFry {
     path: string,
     data: PageData
   ): Promise<TemplateName> {
-    let _progress = template;
+    let _progress = [template];
     const me = this;
     return new Promise(function (resolve, reject) {
       try {
-        const renderRecursive = function (
-          wrapStack: string[], // stack of wrappers
-          passedData: PageData, // from front matter, global, etc
-          current: TemplateName, // included template
-          includeData?: PageData // passed with ejs include
-        ): string {
-          _progress = current;
-          // Check for _body include
-          if (current == "_body") {
-            if (wrapStack.length == 0) {
-              throw new Error(
-                "Wrapper " + template + " was not wrapping anything"
-              );
-            }
-            current = wrapStack.pop() as string;
-          } else {
-            // template depends on this dependency
-            me.markDependsOn(template, current);
-            // Wrappers render where _body gets redirected back to wrapped template.
-            // Support nested wrapping.
-            let wrapper = current;
-            let wrapCheck = wrapper;
-            wrapStack = [];
-            while (me.state.frontMatter[wrapCheck].wrapper) {
-              wrapper = me.state.frontMatter[wrapCheck].wrapper as string;
-              // current depends on this wrapper
-              me.markDependsOn(current, wrapper);
-              wrapStack.push(wrapCheck);
-              wrapCheck = wrapper;
-            }
-            current = wrapper;
-          }
-          // combine data from passed, current front matter, and passed with include
-          const renderData = {
-            ...passedData,
-            ...(me.state.frontMatter[current] || {}),
-            ...(includeData || {}),
-          };
-
-          return me.state.templates[current](
-            renderData,
-            undefined,
-            renderRecursive.bind(null, wrapStack, renderData)
-          );
-        };
-
         path = me.fixPath(path);
 
         const entryScriptName = me.getEntryScriptName(path);
@@ -653,7 +657,13 @@ export class AirFry {
           ...data,
         };
 
-        const html = renderRecursive([], renderData, template);
+        const html = me.renderRecursive(
+          template,
+          [],
+          renderData,
+          _progress,
+          template
+        );
 
         const writePath = "./" + fspath.join(me.outputDir, "/", path);
         if (!fs.existsSync(writePath)) {
@@ -678,7 +688,7 @@ export class AirFry {
         logError(
           pico.red(
             pico.bold(
-              `Error rendering page: ${template}, template: ${_progress}, path: ${path}`
+              `Error rendering page: ${template}, template: ${_progress[0]}, path: ${path}`
             )
           )
         );
@@ -884,8 +894,33 @@ export class AirFry {
             frontMatter: me.state.frontMatter[generateData.name],
             global: me.getGlobalDataAccessProxy(generateData.name),
           };
+
+          // in case a generate script wants to directly render a template
+          const _progress = [""];
+          const renderTemplate = (template: string, data: PageData) => {
+            _progress[0] = template;
+            try {
+              const html = me.renderRecursive(
+                generateData.name,
+                [],
+                data,
+                _progress,
+                template
+              );
+            } catch (error) {
+              throw (
+                "Couldn't render template " +
+                template +
+                " (" +
+                _progress[0] +
+                "): " +
+                error
+              );
+            }
+          };
+
           const code =
-            "((require, resolve, reject, generate, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir) =>  {" +
+            "((require, resolve, reject, generate, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  {" +
             me.getGenerateScript(generateData.name) +
             "})";
           me.expireCache();
@@ -900,7 +935,8 @@ export class AirFry {
               me.state.cache[me.getCacheName(generateData.name)],
               me.scriptLogger.bind(null, generateData.name),
               fm,
-              fspath.resolve(me.dataDir)
+              fspath.resolve(me.dataDir),
+              renderTemplate
             );
           } catch (error: unknown) {
             me.state.errorCount++;
