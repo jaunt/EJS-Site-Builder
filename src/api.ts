@@ -622,7 +622,7 @@ export class AirFry {
     return this.state.templates[current](
       renderData,
       undefined,
-      this.renderRecursive.bind(null, parent, wrapStack, renderData, progress)
+      this.renderRecursive.bind(this, parent, wrapStack, renderData, progress)
     );
   }
 
@@ -635,67 +635,65 @@ export class AirFry {
     template: TemplateName,
     path: string,
     data: PageData
-  ): Promise<TemplateName> {
+  ) {
     let _progress = [template];
     const me = this;
-    return new Promise(function (resolve, reject) {
-      try {
-        path = me.fixPath(path);
 
-        const entryScriptName = me.getEntryScriptName(path);
+    try {
+      path = me.fixPath(path);
 
-        const inputVars = {
-          pagePath: path,
-          pageName: template,
-          lastPath: entryScriptName,
-          entryScript:
-            (path == "/" ? "" : path + "/") + entryScriptName + ".js",
-        };
+      const entryScriptName = me.getEntryScriptName(path);
 
-        const renderData = {
-          ...inputVars,
-          ...data,
-        };
+      const inputVars = {
+        pagePath: path,
+        pageName: template,
+        lastPath: entryScriptName,
+        entryScript: (path == "/" ? "" : path + "/") + entryScriptName + ".js",
+      };
 
-        const html = me.renderRecursive(
-          template,
-          [],
-          renderData,
-          _progress,
-          template
-        );
+      const renderData = {
+        ...inputVars,
+        ...data,
+      };
 
-        const writePath = "./" + fspath.join(me.outputDir, "/", path);
-        if (!fs.existsSync(writePath)) {
-          me.mkdirSyncSafe(writePath, { recursive: true });
-        }
-        const p = fspath.resolve(writePath + "/index.html");
-        me.state.outputData.html.push({
-          source: template,
-          path: p,
-          time: getNowDate(),
-        });
-        me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
-          if (err) {
-            reject(err);
-          } else {
-            log(pico.magenta("Wrote: " + p));
-            resolve(path);
-          }
-        });
-      } catch (error) {
-        me.state.errorCount++;
-        logError(
-          pico.red(
-            pico.bold(
-              `Error rendering page: ${template}, template: ${_progress[0]}, path: ${path}`
-            )
-          )
-        );
-        logError(error);
-        reject(error);
+      const html = me.renderRecursive(
+        template,
+        [],
+        renderData,
+        _progress,
+        template
+      );
+
+      const writePath = "./" + fspath.join(me.outputDir, "/", path);
+      if (!fs.existsSync(writePath)) {
+        me.mkdirSyncSafe(writePath, { recursive: true });
       }
-    });
+      const p = fspath.resolve(writePath + "/index.html");
+      me.state.outputData.html.push({
+        source: template,
+        path: p,
+        time: getNowDate(),
+      });
+      me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
+        if (err) {
+          throw err;
+        } else {
+          log(pico.magenta("Wrote: " + p));
+        }
+      });
+      return path;
+    } catch (error) {
+      me.state.errorCount++;
+      logError(
+        pico.red(
+          pico.bold(
+            `Error rendering page: ${template}, template: ${_progress[0]}, path: ${path}`
+          )
+        )
+      );
+      logError(error);
+      throw error;
+    }
   }
 
   /// -----------------------------------------------------------------------------
@@ -740,13 +738,12 @@ export class AirFry {
           global: me.getGlobalDataAccessProxy(pageName),
           ...me.state.frontMatter[pageName],
         };
-        me.renderTemplate(pageName, path, data)
-          .then((fixedPath) => {
-            checkDone(pageName, true, fixedPath);
-          })
-          .catch(() => {
-            checkDone(pageName);
-          });
+        try {
+          const fixedPath = me.renderTemplate(pageName, path, data);
+          checkDone(pageName, true, fixedPath);
+        } catch (error) {
+          checkDone(pageName);
+        }
       };
 
       toGenerate.forEach((generateData: ToGenerateData) => {
@@ -849,13 +846,16 @@ export class AirFry {
                     generatePageRequest.path
                   );
                   rendered++;
-                  me.renderTemplate(generateData.name, starReplacedPath, data)
-                    .then((fixedPath) => {
-                      checkDone(generateData.name, true, fixedPath);
-                    })
-                    .catch(() => {
-                      checkDone(generateData.name);
-                    });
+                  try {
+                    const fixedPath = me.renderTemplate(
+                      generateData.name,
+                      starReplacedPath,
+                      data
+                    );
+                    checkDone(generateData.name, true, fixedPath);
+                  } catch (error) {
+                    checkDone(generateData.name);
+                  }
                 });
               }
             }
@@ -907,6 +907,7 @@ export class AirFry {
                 _progress,
                 template
               );
+              return html;
             } catch (error) {
               throw (
                 "Couldn't render template " +
