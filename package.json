@@ -1,6 +1,6 @@
 {
   "name": "@danglingdev/airfry",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "Ultra Effecient Static Site Generator.  Fast, healthy, delicious.",
   "main": "./lib/index.js",
   "scripts": {
