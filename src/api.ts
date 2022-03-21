@@ -169,7 +169,9 @@ function safeOutputCheck(
   ...args: unknown[]
 ) {
   if (!isRelative(outPath, path)) {
-    throw "Trying to write " + path + " which is outside of " + outPath;
+    throw new Error(
+      "Trying to write " + path + " which is outside of " + outPath
+    );
   }
   func(path, ...args);
 }
@@ -341,7 +343,9 @@ export class AirFry {
       get: function (...args: any) {
         // access to global deps was detected
         if (!state.globalData[args[1] as string]) {
-          throw "Accessing undefined global data Element: " + args[1];
+          throw new Error(
+            "Accessing undefined global data Element: " + args[1]
+          );
         }
         state.globalDeps[name] = true;
         return Reflect.get.apply(null, args);
@@ -909,13 +913,13 @@ export class AirFry {
               );
               return html;
             } catch (error) {
-              throw (
+              throw new Error(
                 "Couldn't render template " +
-                template +
-                " (" +
-                _progress[0] +
-                "): " +
-                error
+                  template +
+                  " (" +
+                  _progress[0] +
+                  "): " +
+                  error
               );
             }
           };
