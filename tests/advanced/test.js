@@ -1,7 +1,6 @@
 const Diff2html = require("diff2html");
 const { execFileSync } = require("child_process");
 const fs = require("fs-extra");
-const output = require("fs-extra/lib/output");
 
 const diff2htmlstyle = `
 <!-- CSS -->
