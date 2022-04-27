@@ -27,8 +27,8 @@
     "typescript": "^4.4.4"
   },
   "dependencies": {
-    "@danglingdev/clifry": "^0.0.14",
-    "@danglingdev/shared-ts": "^0.0.7",
+    "@danglingdev/clifry": "^0.1.0",
+    "@danglingdev/shared-ts": "^1.0.0",
     "@types/ejs": "^3.1.0",
     "@types/micromatch": "^4.0.2",
     "@types/nconf": "^0.10.1",
@@ -39,7 +39,7 @@
     "front-matter": "^4.0.2",
     "fs-extra": "^10.0.0",
     "micromatch": "^4.0.4",
-    "nconf": "^0.11.3",
+    "nconf": "^0.12.0",
     "picocolors": "^1.0.0"
   },
   "files": [
