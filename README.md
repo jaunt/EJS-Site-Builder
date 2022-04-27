@@ -1,27 +1,28 @@
 # [Airfry](https://github.com/jaunt/airfry)
 
-# PRE-ALPHA UNDER ACTIVE DEVELOPMENT
+#### Typescript powered static site generator. Fast, healthy, delicious.
 
-#### Javascript powered static site generator. Fast, healthy, delicious.
+## The Crispy Commandments
 
-## Design Philosophy
+1. Respond to template or data changes as fast as possible.
+2. Avoid unnecessary site rebuilds like the plague with first class dependency tracking.
+3. Keep it simple! Don't add extra features that are already solved.
+4. Don't reinvent the wheel. Take advantage of existing awesome dev tools like Vite.
+5. Have an opinion when it comes to workflow. Learn from the experience of seasoned and many-times-burned developers.
+6. Express yourself with javascript, not massive config files.
 
-1. When you make a change to your templates or data, the output should be ready as fast as possible, even with thousands of files.
-2. Avoid unnecessary site rebuilds like the plague.
-3. Don't try to do too much and instead take advantage of modern frontend dev tools. For example no assumptions are made about image processing or bundling. Use Vite!
-4. Opinionated design & workflow based on 20 years of commercial development experience.
-5. Near-Zero config. Express yourself with javascript.
+## Main Features
 
-- Effecient Dependecy Tracking
+- Effecient Dependecy Tracking.
 - Javascript EJS templating for performance and ease.
-- Designed to integrate with Vite
-- Recommended to use with Windi or Tailwind
-- Recommended to use with a framework like AlpineJS or Petite Vue
-- Functionally tested with [Clifry](https://github.com/jaunt/clifry), a cli functional testing tool.
+- Designed to integrate with Vite.
+- Designed to work with Tailwind.
+- Intended to optionally work seemlessly with progressive enhancement frameworks like AlpineJS or Petite Vue.
+- Functionally tested with the incredible [Clifry](https://github.com/jaunt/clifry).
 
 ## Documentation
 
-Comming soon.
+Web page Comming soon. [See Airfry Docs on Github](https://github.com/jaunt/airfryDocs).
 
 ## Build / Release
 
