@@ -20,4 +20,4 @@
 - Intended to optionally work seemlessly with progressive enhancement frameworks like AlpineJS or Petite Vue.
 - Functionally tested with the incredible [Clifry](https://github.com/jaunt/clifry).
 
-## Docs (https://airfrydocs.netlify.app/).
+# [Docs](https://airfrydocs.netlify.app/)
