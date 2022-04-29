@@ -20,13 +20,4 @@
 - Intended to optionally work seemlessly with progressive enhancement frameworks like AlpineJS or Petite Vue.
 - Functionally tested with the incredible [Clifry](https://github.com/jaunt/clifry).
 
-## Documentation
-
-Web page Comming soon. [See Airfry Docs on Github](https://github.com/jaunt/airfryDocs).
-
-## Build / Release
-
-```
-npm install --global np
-np
-```
+## Docs (https://airfrydocs.netlify.app/).
