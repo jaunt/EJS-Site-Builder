@@ -1,8 +1,8 @@
-# [Airfry](https://github.com/jaunt/airfry)
+# Airfry
 
 #### Typescript powered static site generator. Fast, healthy, delicious.
 
-## The Crispy Commandments
+## The Crispy Commandments :doughnut:
 
 1. Respond to template or data changes as fast as possible.
 2. Avoid unnecessary site rebuilds like the plague with first class dependency tracking.
@@ -11,7 +11,7 @@
 5. Have an opinion when it comes to workflow. Learn from the experience of seasoned and many-times-burned developers.
 6. Express yourself with javascript, not massive config files.
 
-## Main Features
+## Main Features :fork_and_knife:
 
 - Effecient Dependecy Tracking.
 - Javascript EJS templating for performance and ease.
@@ -20,13 +20,7 @@
 - Intended to optionally work seemlessly with progressive enhancement frameworks like AlpineJS or Petite Vue.
 - Functionally tested with the incredible [Clifry](https://github.com/jaunt/clifry).
 
-## Documentation
+## Documentation  :fries:
+[The documentation for Airfry](https://airfrydocs.netlify.app/) has been generated with Airfry with the help of Tailwind and Vite.  It's hosted on netlify:<br>
 
-Web page Comming soon. [See Airfry Docs on Github](https://github.com/jaunt/airfryDocs).
-
-## Build / Release
-
-```
-npm install --global np
-np
-```
+Apart from reading the docs, a great way to learn Airfy is to explore the [docs repository](https://github.com/jaunt/airfryDocs), specifically the airfry folder which generates the src folder which is processed by vite.
