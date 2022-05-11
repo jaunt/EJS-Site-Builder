@@ -190,6 +190,170 @@ process.on("message", (message) => {
   }
 });
 
+const watcher = chokidar.watch([inputDir, dataDir], {
+  ignored: /(^|[\/\\])\../, // ignore dotfiles
+  persistent: true,
+  ignoreInitial: true,
+  awaitWriteFinish: {
+    stabilityThreshold: 1000,
+    pollInterval: 100,
+  },
+});
+
+let pinger: Pinger;
+
+let deps: Dependencies = {};
+
+const startWatching = () => {
+  // step 3. watch src directory
+  let errors = airfry.getErrorCount();
+
+  if (errors > 0) {
+    logError("Errors detected: " + errors);
+  } else {
+    log("Zero errors detected.");
+  }
+
+  if (options.noWatch) {
+    log(`All files written.  No-watch option ending program now.`);
+    watcher.close().then(() => console.log("closed"));
+    return;
+  }
+
+  log(`All files written.  Watching for changes.`);
+
+  const getKind = (p: string) => {
+    const checks = [
+      {
+        kind: "data",
+        prefix: fspath.join(dataDir),
+      },
+      {
+        kind: PRE_GENERATE_NAME,
+        prefix: fspath.join(inputDir, PRE_GENERATE_JS),
+      },
+      {
+        kind: POST_GENERATE_NAME,
+        prefix: fspath.join(inputDir, POST_GENERATE_JS),
+      },
+      {
+        kind: "template",
+        prefix: fspath.join(inputDir),
+      },
+    ];
+    for (const check of checks) {
+      if (p.startsWith(check.prefix)) {
+        return {
+          kind: check.kind,
+          name: p.slice(check.prefix.length + 1),
+        };
+      }
+    }
+    return {
+      kind: "",
+      name: "",
+    };
+  };
+
+  const queueChange = (
+    p: string,
+    reason: TriggerReason = TriggerReason.Modified
+  ) => {
+    pinger.restart();
+    const check = getKind(p);
+    if (check.kind == PRE_GENERATE_NAME) {
+      airfry
+        .processPreGenerate()
+        .then(() => {
+          log("Pre Generate JS updated -- updating deps");
+          deps = { ...deps, ...airfry.getGlobalDeps() };
+        })
+        .catch((error) => {
+          logError("Pre Generate JS update error: ", error);
+        });
+    } else if (check.kind == POST_GENERATE_NAME) {
+      airfry
+        .processPostGenerate()
+        .then(() => {
+          log("Post Generate JS updated");
+          // nothing can depend on post generate
+        })
+        .catch((error) => {
+          logError("Post Generate JS update error: ");
+          log(error);
+        });
+    } else if (check.kind == "template") {
+      if (reason == TriggerReason.Added || reason == TriggerReason.Modified) {
+        // step 1. update the template itself,
+        airfry
+          .processTemplateFilesPromise(airfry.getTemplateFileName(check.name))
+          .then((updateList) => {
+            log("Template Updated: " + p);
+            // render it:
+            // step 2. ... then any other templates depending on it
+            deps = { ...deps, ...airfry.getTemplateDeps(updateList[0]) };
+            log("Ready to update deps:");
+            log(JSON.stringify(deps));
+          })
+          .catch((error) => {
+            logError("Template update error: ", error);
+          });
+      } else if (reason == TriggerReason.Deleted) {
+        // step 1. clean up the template.  this will surely
+        // produce errors from anything depending on it.
+        airfry.processDeletedTemplatePromise(
+          airfry.getTemplateFileName(check.name)
+        );
+      }
+    } else if (check.kind == "data") {
+      // when it's data, we need to process separately for
+      // every file in case a generator can rebuild for a single file.
+      const dataFileName = fspath.resolve(dataDir + "/" + check.name);
+      const dataDeps = airfry.getDataDeps(dataFileName);
+      airfry.updateDeps(dataDeps, dataFileName, reason);
+    }
+  };
+
+  watcher
+    .on("add", (p: string) => {
+      queueChange(p, TriggerReason.Added);
+    })
+    .on("change", (p) => {
+      queueChange(p, TriggerReason.Modified);
+    })
+    .on("unlink", (p) => {
+      log(`${p} has been removed`);
+      // deleting dependencies will likely cause parents to complain!
+      queueChange(p, TriggerReason.Deleted);
+    })
+    .on("unlinkDir", (path) => log(`Directory ${path} has been removed`));
+
+  pinger = new Pinger(
+    "watcher",
+    (id: string) => {
+      pinger.stop();
+      airfry
+        .updateDeps({ ...deps })
+        .then(() => {
+          log("Dependencies updated.");
+        })
+        .catch((error) => {
+          logError(error);
+        })
+        .finally(() => {
+          deps = {};
+          const newCount = airfry.getErrorCount();
+          if (newCount > errors) {
+            logError("New errors detected: " + (newCount - errors));
+            errors = newCount;
+          }
+          pinger.restart();
+        });
+    },
+    50
+  );
+};
+
 if (!watchOnly) {
   // step 1:  process global.js
   airfry
@@ -207,174 +371,16 @@ if (!watchOnly) {
       return airfry.processPostGenerate();
     })
     .then(() => {
-      // step 3. watch src directory
-
-      let errors = airfry.getErrorCount();
-
-      if (errors > 0) {
-        logError("Errors detected: " + errors);
-      } else {
-        log("Zero errors detected.");
-      }
-
-      if (options.noWatch) {
-        log(`All files written.  No-watch option ending program now.`);
-        return;
-      }
-
-      log(`All files written.  Watching for changes.`);
-
-      const watcher = chokidar.watch([inputDir, dataDir], {
-        ignored: /(^|[\/\\])\../, // ignore dotfiles
-        persistent: true,
-        ignoreInitial: true,
-        awaitWriteFinish: {
-          stabilityThreshold: 1000,
-          pollInterval: 100,
-        },
-      });
-
-      const getKind = (p: string) => {
-        const checks = [
-          {
-            kind: "data",
-            prefix: fspath.join(dataDir),
-          },
-          {
-            kind: PRE_GENERATE_NAME,
-            prefix: fspath.join(inputDir, PRE_GENERATE_JS),
-          },
-          {
-            kind: POST_GENERATE_NAME,
-            prefix: fspath.join(inputDir, POST_GENERATE_JS),
-          },
-          {
-            kind: "template",
-            prefix: fspath.join(inputDir),
-          },
-        ];
-        for (const check of checks) {
-          if (p.startsWith(check.prefix)) {
-            return {
-              kind: check.kind,
-              name: p.slice(check.prefix.length + 1),
-            };
-          }
-        }
-        return {
-          kind: "",
-          name: "",
-        };
-      };
-
-      let pinger: Pinger;
-
-      let deps: Dependencies = {};
-
-      const queueChange = (
-        p: string,
-        reason: TriggerReason = TriggerReason.Modified
-      ) => {
-        pinger.restart();
-        const check = getKind(p);
-        if (check.kind == PRE_GENERATE_NAME) {
-          airfry
-            .processPreGenerate()
-            .then(() => {
-              log("Pre Generate JS updated -- updating deps");
-              deps = { ...deps, ...airfry.getGlobalDeps() };
-            })
-            .catch((error) => {
-              logError("Pre Generate JS update error: ", error);
-            });
-        } else if (check.kind == POST_GENERATE_NAME) {
-          airfry
-            .processPostGenerate()
-            .then(() => {
-              log("Post Generate JS updated");
-              // nothing can depend on post generate
-            })
-            .catch((error) => {
-              logError("Post Generate JS update error: ");
-              log(error);
-            });
-        } else if (check.kind == "template") {
-          if (
-            reason == TriggerReason.Added ||
-            reason == TriggerReason.Modified
-          ) {
-            // step 1. update the template itself,
-            airfry
-              .processTemplateFilesPromise(
-                airfry.getTemplateFileName(check.name)
-              )
-              .then((updateList) => {
-                log("Template Updated: " + p);
-                // render it:
-                // step 2. ... then any other templates depending on it
-                deps = { ...deps, ...airfry.getTemplateDeps(updateList[0]) };
-                log("Ready to update deps:");
-                log(JSON.stringify(deps));
-              })
-              .catch((error) => {
-                logError("Template update error: ", error);
-              });
-          } else if (reason == TriggerReason.Deleted) {
-            // step 1. clean up the template.  this will surely
-            // produce errors from anything depending on it.
-            airfry.processDeletedTemplatePromise(
-              airfry.getTemplateFileName(check.name)
-            );
-          }
-        } else if (check.kind == "data") {
-          // when it's data, we need to process separately for
-          // every file in case a generator can rebuild for a single file.
-          const dataFileName = fspath.resolve(dataDir + "/" + check.name);
-          const dataDeps = airfry.getDataDeps(dataFileName);
-          airfry.updateDeps(dataDeps, dataFileName, reason);
-        }
-      };
-
-      watcher
-        .on("add", (p: string) => {
-          queueChange(p, TriggerReason.Added);
-        })
-        .on("change", (p) => {
-          queueChange(p, TriggerReason.Modified);
-        })
-        .on("unlink", (p) => {
-          log(`${p} has been removed`);
-          // deleting dependencies will likely cause parents to complain!
-          queueChange(p, TriggerReason.Deleted);
-        })
-        .on("unlinkDir", (path) => log(`Directory ${path} has been removed`));
-
-      pinger = new Pinger(
-        "watcher",
-        (id: string) => {
-          pinger.stop();
-          airfry
-            .updateDeps({ ...deps })
-            .then(() => {
-              log("Dependencies updated.");
-            })
-            .catch((error) => {
-              logError(error);
-            })
-            .finally(() => {
-              deps = {};
-              const newCount = airfry.getErrorCount();
-              if (newCount > errors) {
-                logError("New errors detected: " + (newCount - errors));
-                errors = newCount;
-              }
-              pinger.restart();
-            });
-        },
-        50
-      );
+      startWatching();
     })
     .catch((error) => {
       logError(error);
     });
+} else {
+  // only watch
+  try {
+    startWatching();
+  } catch (error) {
+    logError(error);
+  }
 }
