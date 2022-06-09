@@ -11,7 +11,7 @@ import { isRelative, Pinger, makeLoggers } from "@danglingdev/shared-ts";
 import { exit } from "process";
 
 import {
-  AirFry,
+  Templer,
   PRE_GENERATE_JS,
   PRE_GENERATE_NAME,
   POST_GENERATE_JS,
@@ -20,7 +20,7 @@ import {
   TriggerReason,
 } from "./api";
 
-// this is only safe because airfry is a stand-alone cli, not a module
+// this is only safe because templer is a stand-alone cli, not a module
 const LIB_VERSION = require("../package.json").version;
 
 const BAD_OPTIONS = 3;
@@ -51,7 +51,7 @@ program.version(LIB_VERSION);
 program.parse(process.argv);
 const options = program.opts();
 
-nconf.argv().env().file({ file: "./airfry.json" });
+nconf.argv().env().file({ file: "./templer.json" });
 const optionsConfig = nconf.get("options") || {};
 
 const getOption = (opt: string, def: string): string => {
@@ -60,7 +60,7 @@ const getOption = (opt: string, def: string): string => {
       pico.yellow(
         "Warning, command line argument " +
           pico.white(opt) +
-          " is overriding option specified in airfry.json"
+          " is overriding option specified in templer.json"
       )
     );
   }
@@ -81,11 +81,11 @@ const getOption = (opt: string, def: string): string => {
   return result;
 };
 
-const inputDir = getOption("input", "./airfry/input");
-const dataDir = getOption("data", "./airfry/data");
-const outputDir = getOption("output", "./airfry/output");
+const inputDir = getOption("input", "./templer/input");
+const dataDir = getOption("data", "./templer/data");
+const outputDir = getOption("output", "./templer/output");
 const publicDir = getOption("public", "");
-const cacheDir = getOption("cache", "./airfry/cache");
+const cacheDir = getOption("cache", "./templer/cache");
 const verbose = getOption("verbose", "");
 const noWatch = getOption("noWatch", "");
 const watchOnly = getOption("watchOnly", "");
@@ -166,7 +166,7 @@ if (publicDir) {
   copyDir(publicDir, outputDir);
 }
 
-const airfry = new AirFry(inputDir, dataDir, outputDir, cacheDir, verbose);
+const templer = new Templer(inputDir, dataDir, outputDir, cacheDir, verbose);
 
 // We want to the cache to store to disk whenever we exit.
 // simplified from:
@@ -176,7 +176,7 @@ let _exited = false;
 const onExit = (shouldExit: boolean, signal: number) => {
   if (_exited) return;
   _exited = true;
-  airfry.storeCache();
+  templer.storeCache();
   if (shouldExit === true) {
     process.exit(128 + signal);
   }
@@ -206,7 +206,7 @@ let deps: Dependencies = {};
 
 const startWatching = () => {
   // step 3. watch src directory
-  let errors = airfry.getErrorCount();
+  let errors = templer.getErrorCount();
 
   if (errors > 0) {
     logError("Errors detected: " + errors);
@@ -262,17 +262,17 @@ const startWatching = () => {
     pinger.restart();
     const check = getKind(p);
     if (check.kind == PRE_GENERATE_NAME) {
-      airfry
+      templer
         .processPreGenerate()
         .then(() => {
           log("Pre Generate JS updated -- updating deps");
-          deps = { ...deps, ...airfry.getGlobalDeps() };
+          deps = { ...deps, ...templer.getGlobalDeps() };
         })
         .catch((error) => {
           logError("Pre Generate JS update error: ", error);
         });
     } else if (check.kind == POST_GENERATE_NAME) {
-      airfry
+      templer
         .processPostGenerate()
         .then(() => {
           log("Post Generate JS updated");
@@ -285,13 +285,13 @@ const startWatching = () => {
     } else if (check.kind == "template") {
       if (reason == TriggerReason.Added || reason == TriggerReason.Modified) {
         // step 1. update the template itself,
-        airfry
-          .processTemplateFilesPromise(airfry.getTemplateFileName(check.name))
+        templer
+          .processTemplateFilesPromise(templer.getTemplateFileName(check.name))
           .then((updateList) => {
             log("Template Updated: " + p);
             // render it:
             // step 2. ... then any other templates depending on it
-            deps = { ...deps, ...airfry.getTemplateDeps(updateList[0]) };
+            deps = { ...deps, ...templer.getTemplateDeps(updateList[0]) };
             log("Ready to update deps:");
             log(JSON.stringify(deps));
           })
@@ -301,16 +301,16 @@ const startWatching = () => {
       } else if (reason == TriggerReason.Deleted) {
         // step 1. clean up the template.  this will surely
         // produce errors from anything depending on it.
-        airfry.processDeletedTemplatePromise(
-          airfry.getTemplateFileName(check.name)
+        templer.processDeletedTemplatePromise(
+          templer.getTemplateFileName(check.name)
         );
       }
     } else if (check.kind == "data") {
       // when it's data, we need to process separately for
       // every file in case a generator can rebuild for a single file.
       const dataFileName = fspath.resolve(dataDir + "/" + check.name);
-      const dataDeps = airfry.getDataDeps(dataFileName);
-      airfry.updateDeps(dataDeps, dataFileName, reason);
+      const dataDeps = templer.getDataDeps(dataFileName);
+      templer.updateDeps(dataDeps, dataFileName, reason);
     }
   };
 
@@ -332,7 +332,7 @@ const startWatching = () => {
     "watcher",
     (id: string) => {
       pinger.stop();
-      airfry
+      templer
         .updateDeps({ ...deps })
         .then(() => {
           log("Dependencies updated.");
@@ -342,7 +342,7 @@ const startWatching = () => {
         })
         .finally(() => {
           deps = {};
-          const newCount = airfry.getErrorCount();
+          const newCount = templer.getErrorCount();
           if (newCount > errors) {
             logError("New errors detected: " + (newCount - errors));
             errors = newCount;
@@ -356,19 +356,19 @@ const startWatching = () => {
 
 if (!watchOnly) {
   // step 1:  process global.js
-  airfry
+  templer
     .processPreGenerate()
     .then(() => {
       // step 2. process existing src files
-      return airfry.processTemplateFilesPromise();
+      return templer.processTemplateFilesPromise();
     })
     .then(() => {
       // step 3. wait until first batch page generation
-      return airfry.generatePages();
+      return templer.generatePages();
     })
     .then(() => {
       // step 3. wait until first batch page generation
-      return airfry.processPostGenerate();
+      return templer.processPostGenerate();
     })
     .then(() => {
       startWatching();

@@ -99,10 +99,10 @@ const test = (CliFry) => {
     await testRun.sleep(100);
 
     try {
-      // STEP 3, start AirFry
+      // STEP 3, start Templer
       await testRun.start(200);
 
-      // STEP 4, wait for airfry to be done initial run.
+      // STEP 4, wait for templer to be done initial run.
       await testRun.untilStdoutIncludes("Watching for changes");
       // and a bit in case file system is writing?
       await testRun.sleep(300);

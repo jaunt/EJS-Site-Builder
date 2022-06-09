@@ -138,7 +138,7 @@ type GeneratorResponse = {
   global: PageData; // only valid from pregenerat
 };
 
-type AirFryData = {
+type TemplerData = {
   generateScripts: Script;
   generateScriptRefs: ScriptRef;
   entryScripts: Script;
@@ -183,7 +183,7 @@ function stringifyFuncs(_: any, v: any) {
   return v;
 }
 
-export class AirFry {
+export class Templer {
   readonly inputDir: string;
   readonly dataDir: string;
   readonly outputDir: string;
@@ -207,7 +207,7 @@ export class AirFry {
     this.loadCache();
   }
 
-  private state: AirFryData = {
+  private state: TemplerData = {
     generateScripts: {},
     generateScriptRefs: {},
     entryScripts: {},
@@ -1086,7 +1086,7 @@ export class AirFry {
           pico.red(
             "Generate-use script template in: '" +
               name +
-              "' not specified correctly.  See: (https://jaunt.github.io/airfry/docs/input/templates)"
+              "' not specified correctly.  See: (https://jaunt.github.io/templer/docs/input/templates)"
           )
         );
       }

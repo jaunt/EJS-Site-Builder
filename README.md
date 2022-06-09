@@ -1,26 +1,29 @@
-# Airfry
+# Templer
 
-#### Typescript powered static site generator. Fast, healthy, delicious.
+#### Minimalistic javascript powered site generator, full dependency tracking, fast updates.
 
-## The Crispy Commandments :doughnut:
+## Six Crispy Commandments :doughnut:
 
 1. Respond to template or data changes as fast as possible.
 2. Avoid unnecessary site rebuilds like the plague with first class dependency tracking.
-3. Keep it simple! Don't add extra features that are already solved.
-4. Don't reinvent the wheel. Take advantage of existing awesome dev tools like Vite.
-5. Have an opinion when it comes to workflow. Learn from the experience of seasoned and many-times-burned developers.
-6. Express yourself with javascript, not massive config files.
+3. Don't add extra features that are already solved by other tools.
+4. Take advantage of existing awesome dev tools like Vite.
+5. Don't try to please everyone.
+6. Express ourselves with javascript, not massive config files.
 
-## Main Features :fork_and_knife:
+## Highlights
 
 - Effecient Dependecy Tracking.
-- Javascript EJS templating for performance and ease.
+- Javascript EJS templating for performance and flexibilty.
 - Designed to integrate with Vite.
-- Designed to work with Tailwind.
-- Intended to optionally work seemlessly with progressive enhancement frameworks like AlpineJS or Petite Vue.
+- Designed to work with utilities like Tailwind.
+- Designed to work with frameworks like AlpineJS.
 - Functionally tested with the incredible [Clifry](https://github.com/jaunt/clifry).
 
-## Documentation  :fries:
-[The documentation for Airfry](https://airfrydocs.netlify.app/) has been generated with Airfry with the help of Tailwind and Vite.  It's hosted on netlify:<br>
+## Documentation
 
-Apart from reading the docs, a great way to learn Airfy is to explore the [docs repository](https://github.com/jaunt/airfryDocs), specifically the airfry folder which generates the src folder which is processed by vite.
+[DOCS](https://templerdocs.netlify.app/)
+
+Templer docs are made with Templer, Tailwind, and Vite, hosted on Netlify.
+
+Apart from reading the docs, a great way to learn Templer is to explore the [Templer docs repository](https://github.com/jaunt/templerDocs), specifically the templer folder which generates the src folder which is processed by vite.

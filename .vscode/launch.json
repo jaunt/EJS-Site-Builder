@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch AirFry",
+      "name": "Launch Templer",
       "program": "${workspaceFolder}/src/cli.ts",
       "request": "launch",
       "preLaunchTask": "build",
