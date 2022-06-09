@@ -92,11 +92,11 @@ const test = (CliFry) => {
     fs.rmSync(testRun.dir + "/templates", { recursive: true, force: true });
     fs.rmSync(testRun.dir + "/output", { recursive: true, force: true });
     fs.rmSync(testRun.dir + "/cache", { recursive: true, force: true });
-    await testRun.sleep(100);
+    await testRun.sleep(300);
 
     // STEP 2, copy templates-time-0 and data-time-0 to data and templates
     copyInputs(testRun, 0);
-    await testRun.sleep(100);
+    await testRun.sleep(300);
 
     try {
       // STEP 3, start Templer
