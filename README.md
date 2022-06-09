@@ -2,7 +2,7 @@
 
 #### Minimalistic javascript powered site generator, full dependency tracking, fast updates.
 
-## Six Crispy Commandments :doughnut:
+## Design Constraints
 
 1. Respond to template or data changes as fast as possible.
 2. Avoid unnecessary site rebuilds like the plague with first class dependency tracking.

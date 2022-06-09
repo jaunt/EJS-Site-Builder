@@ -25,11 +25,7 @@ const LIB_VERSION = require("../package.json").version;
 
 const BAD_OPTIONS = 3;
 
-console.log(
-  pico.black(
-    pico.bgWhite(pico.bold("\n Air" + pico.white(pico.bgBlue(" Fry \n"))))
-  )
-);
+console.log(pico.black(pico.bgWhite(pico.bold("\n TEMPLER \n"))));
 console.log(pico.blue("Version " + LIB_VERSION + "\n"));
 
 const loggers = makeLoggers("@ ");
