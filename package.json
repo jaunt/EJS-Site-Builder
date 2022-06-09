@@ -8,6 +8,9 @@
     "start": "node lib/cli.js",
     "build": "tsc"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jaunt/templer.git"
