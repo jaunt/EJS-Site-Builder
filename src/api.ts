@@ -607,7 +607,7 @@ export class Templer {
       let wrapper = current;
       let wrapCheck = wrapper;
       wrapStack = [];
-      while (this.state.frontMatter[wrapCheck].wrapper) {
+      while (this.state.frontMatter[wrapCheck]?.wrapper) {
         wrapper = this.state.frontMatter[wrapCheck].wrapper as string;
         // current depends on this wrapper
         this.markDependsOn(current, wrapper);
@@ -1456,7 +1456,6 @@ export class Templer {
     // generation if it is a page maker
 
     if (this.verbose) {
-      log("Dependency Tree Tree:");
       log(JSON.stringify(this.state.templateDepTree, null, "  "));
     }
 

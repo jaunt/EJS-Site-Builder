@@ -373,10 +373,16 @@ if (!watchOnly) {
       logError(error);
     });
 } else {
-  // only watch
-  try {
-    startWatching();
-  } catch (error) {
-    logError(error);
-  }
+  templer
+    .processPreGenerate()
+    .then(() => {
+      // step 2. process existing src files
+      return templer.processTemplateFilesPromise();
+    })
+    .then(() => {
+      startWatching();
+    })
+    .catch((error) => {
+      logError(error);
+    });
 }
