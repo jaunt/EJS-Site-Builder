@@ -1,6 +1,6 @@
 {
   "name": "@danglingdev/templer",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Minimalistic javascript powered site generator, full dependency tracking, fast updates",
   "main": "./lib/index.js",
   "scripts": {
