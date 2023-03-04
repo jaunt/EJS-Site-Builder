@@ -22,7 +22,7 @@
 
 ## Documentation
 
-[DOCS](https://templerdocs.netlify.app/)
+[DOCS](https://templer.netlify.app/)
 
 Templer docs are made with Templer, Tailwind, and Vite, hosted on Netlify.
 
