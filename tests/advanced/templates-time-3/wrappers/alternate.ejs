@@ -1,0 +1,23 @@
+---
+wrapper: wrappers/doubleWrap
+---
+
+<html lang="en">
+<meta name="description" content="wrappers/alternate wrapped">
+
+<head>
+  <title><%= title %></title>
+</head>
+
+<%- include('widgets/button', {"className": "but","text": "about me", "fun" :"times"}); %>
+
+<body>
+  Alternate:
+  <i> <%- include('_body') %> </i>
+</body>
+
+</html>
+
+<script entry>
+  // wrapper entry script
+</script>

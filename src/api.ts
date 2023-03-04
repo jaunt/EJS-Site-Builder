@@ -17,11 +17,6 @@ const loggers = makeLoggers("@ ");
 const log = loggers.log;
 const logError = loggers.logError;
 
-export const PRE_GENERATE_JS = "preGenerate.js";
-export const POST_GENERATE_JS = "postGenerate.js";
-export const PRE_GENERATE_NAME = "PRE_GENERATE";
-export const POST_GENERATE_NAME = "POST_GENERATE";
-
 const libDir = "/js";
 
 const SCRIPT_ENTRY = "<script entry>";
@@ -100,26 +95,15 @@ type CacheData = {
   [key: string]: CacheItem;
 };
 
-type Cache = {
-  [key: PageName]: CacheData;
-};
-
-type GeneratorDataOutput = {
-  [key: PageName]: { [key: string]: PageData };
+type FileWritten = {
+  kind: string;
+  source: string[]; // cause of modification
+  created: string;
+  modified: string;
 };
 
 type FilesWritten = {
-  source: string;
-  path: string;
-  time: string;
-};
-
-type OutputData = {
-  html: FilesWritten[];
-  entry: FilesWritten[];
-  lib: FilesWritten[];
-  json: FilesWritten[];
-  outData: GeneratorDataOutput;
+  [key: string]: FileWritten;
 };
 
 type PageGenerateRequest = {
@@ -134,7 +118,6 @@ type GeneratorResponse = {
   siteFiles: { [key: Path]: unknown };
   watchFiles: Path[];
   watchGlobs: string[];
-  outData: GeneratorDataOutput;
   global: PageData; // only valid from pregenerat
 };
 
@@ -145,14 +128,20 @@ type TemplerData = {
   templateDepTree: DependencyTree;
   pathDepTree: DependencyTree;
   wildDepTree: DependencyTree;
-  globalDeps: Dependencies;
+  globalDepTree: DependencyTree;
+  globalDepUpdated: { [key: string]: boolean };
   frontMatter: FrontMatter;
   templates: CompiledTemplate;
   toGenerate: ToGenerate;
   globalData: PageData;
-  cache: Cache;
-  outputData: OutputData;
+  cacheData: CacheData;
+  filesWritten: FilesWritten;
   errorCount: 0;
+};
+
+type ProcessTemplateFilesResponse = {
+  updatedTemplates: string[];
+  updatedGlobalDeps: string[];
 };
 
 type fsFunc = (...args: any[]) => unknown;
@@ -214,19 +203,14 @@ export class Templer {
     templateDepTree: {},
     pathDepTree: {},
     wildDepTree: {},
-    globalDeps: {},
+    globalDepTree: {},
+    globalDepUpdated: {},
     frontMatter: {},
     templates: {},
     toGenerate: {},
     globalData: {},
-    cache: {},
-    outputData: {
-      html: [],
-      entry: [],
-      lib: [],
-      json: [],
-      outData: {},
-    },
+    cacheData: {},
+    filesWritten: {},
     errorCount: 0,
   };
 
@@ -287,24 +271,20 @@ export class Templer {
   /// Caching
   /// -----------------------------------------------------------------------------
   protected expireCache(): void {
-    for (const cacheName in this.state.cache) {
-      const cacheGroup = this.state.cache[cacheName];
-      for (const itemName in cacheGroup) {
-        const expires = cacheGroup[itemName].expires;
-        if (expires) {
-          if (!isNaN(expires)) {
-            const now = new Date().getTime();
-            if (now > expires) {
-              log(
-                pico.green("Expired " + cacheName + " cache item: " + itemName)
-              );
-              delete cacheGroup[itemName];
-            }
-          } else {
-            throw new Error(
-              cacheName + " cache item " + itemName + " expires date is invalid"
-            );
+    const cacheData = this.state.cacheData;
+    for (const itemName in cacheData) {
+      const expires = cacheData[itemName].expires;
+      if (expires) {
+        if (!isNaN(expires)) {
+          const now = new Date().getTime();
+          if (now > expires) {
+            log(pico.green("Expired cache item: " + itemName));
+            delete cacheData[itemName];
           }
+        } else {
+          throw new Error(
+            "Cache item " + itemName + " expires date is invalid"
+          );
         }
       }
     }
@@ -314,7 +294,7 @@ export class Templer {
     if (fs.existsSync(p + "/cache.json")) {
       let rawdata = fs.readFileSync(p + "/cache.json");
       if (rawdata && rawdata.length > 0) {
-        this.state.cache = JSON.parse(rawdata.toString());
+        this.state.cacheData = JSON.parse(rawdata.toString());
       }
     }
   }
@@ -322,7 +302,7 @@ export class Templer {
   // call before exiting
   public storeCache(): void {
     const p = fspath.resolve(this.cacheDir);
-    let data = JSON.stringify(this.state.cache);
+    let data = JSON.stringify(this.state.cacheData);
     if (data) {
       if (!fs.existsSync(this.cacheDir)) {
         log(pico.green("Making cache dir: " + p));
@@ -339,6 +319,8 @@ export class Templer {
   protected getGlobalDataAccessProxy(name: PageName): typeof Proxy {
     // a proxy to detect access to global data from scripts
     const state = this.state;
+    // always overwrite filesWritten to global data
+    state.globalData["filesWritten"] = this.state.filesWritten;
     const globalDataAccessHandler = {
       get: function (...args: any) {
         // access to global deps was detected
@@ -347,7 +329,11 @@ export class Templer {
             "Accessing undefined global data Element: " + args[1]
           );
         }
-        state.globalDeps[name] = true;
+        const dep = args[1];
+        if (!state.globalDepTree[dep]) {
+          state.globalDepTree[dep] = {};
+        }
+        state.globalDepTree[dep][name] = true;
         return Reflect.get.apply(null, args);
       },
     };
@@ -406,6 +392,27 @@ export class Templer {
     this.state.templateDepTree[dependency][template] = true;
   }
 
+  protected updateFileWritten(
+    kind: string,
+    source: string,
+    path: string
+  ): void {
+    const now = getNowDate();
+    source += " " + now;
+    // add to fileswritten if it doesn't exist or set modification and push to source
+    if (!this.state.filesWritten[path]) {
+      this.state.filesWritten[path] = {
+        kind: kind,
+        source: [source],
+        created: now,
+        modified: now,
+      };
+    } else {
+      this.state.filesWritten[path].source.push(source);
+      this.state.filesWritten[path].modified = now;
+    }
+  }
+
   protected writeEntryScript(
     template: string,
     script: string,
@@ -417,11 +424,7 @@ export class Templer {
       this.mkdirSyncSafe(writePath, { recursive: true });
     }
     const p = fspath.resolve(writePath + "/" + name);
-    this.state.outputData.entry.push({
-      source: template,
-      path: p,
-      time: getNowDate(),
-    });
+    this.updateFileWritten("entry", template, p);
     this.writeFileSafe(p, script, (err: NodeJS.ErrnoException | null): void => {
       if (err) {
         this.state.errorCount++;
@@ -486,18 +489,27 @@ export class Templer {
   /// -----------------------------------------------------------------------------
   protected processGeneratorResponse(
     response: GeneratorResponse | undefined,
-    name: PageName,
-    cacheName: string
+    name: PageName
   ): void {
     if (!response) {
       return;
     }
+    if (response.global) {
+      const globalData = response.global;
+      for (const key in globalData) {
+        if (this.state.globalData[key] == undefined) {
+          this.state.globalData[key] = globalData[key];
+        } else {
+          if (this.state.globalData[key] != globalData[key]) {
+            this.state.globalData[key] = globalData[key];
+            this.state.globalDepUpdated[key] = true;
+          }
+        }
+      }
+    }
     if (response.cache) {
       // page is requesting to update its cache
-      this.state.cache[cacheName] = response.cache;
-    }
-    if (response.outData) {
-      this.state.outputData.outData[name] = response.outData;
+      this.state.cacheData = { ...this.state.cacheData, ...response.cache };
     }
     if (response.siteFiles) {
       // page is asking to create a json file in the output directory
@@ -511,11 +523,7 @@ export class Templer {
         if (!fs.existsSync(writePath)) {
           this.mkdirSyncSafe(writePath, { recursive: true });
         }
-        this.state.outputData.json.push({
-          source: name,
-          path: p,
-          time: getNowDate(),
-        });
+        this.updateFileWritten("json", name, p);
         let writeData;
         if (
           typeof siteFiles[file] === "string" ||
@@ -673,11 +681,7 @@ export class Templer {
         me.mkdirSyncSafe(writePath, { recursive: true });
       }
       const p = fspath.resolve(writePath + "/index.html");
-      me.state.outputData.html.push({
-        source: template,
-        path: p,
-        time: getNowDate(),
-      });
+      me.updateFileWritten("html", template, p);
       me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
         if (err) {
           throw err;
@@ -709,7 +713,7 @@ export class Templer {
   /// -----------------------------------------------------------------------------
   public generatePages(): Promise<void> {
     const me = this;
-    return new Promise(function (resolve, _) {
+    return new Promise(async function (resolve, _) {
       let toGenerate = Object.values(me.state.toGenerate);
       let toRender = toGenerate.length; // todo list count
 
@@ -750,212 +754,247 @@ export class Templer {
         }
       };
 
-      toGenerate.forEach((generateData: ToGenerateData) => {
-        delete me.state.toGenerate[generateData.name]; // mark completed
-        if (me.getGenerateScript(generateData.name)) {
-          let rendered = 0;
-          let pinger = new Pinger(
-            generateData.name,
-            (id: string) => {
-              log(pico.yellow("Waiting for generator to call resolve: " + id));
-            },
-            3000
-          );
-          const generateDone = (response: GeneratorResponse) => {
-            pinger.stop();
-            log(pico.yellow("Generator Resolved: " + generateData.name));
+      const hasPre = toGenerate.findIndex((item) => item.name == "preGenerate");
+      // if there is a preGenerate template, make sure it's processed first
+      const pre = toGenerate[hasPre];
+      if (hasPre > 0) {
+        toGenerate.splice(hasPre, 1);
+      }
 
-            if (rendered == 0) {
+      const hasPost = toGenerate.findIndex(
+        (item) => item.name == "postGenerate"
+      );
+      // if there is a postGenerate template, make sure it's processed last
+      const post = toGenerate[hasPost];
+      if (hasPost > -1 && hasPost < toGenerate.length - 1) {
+        toGenerate.splice(hasPost, 1);
+      }
+
+      const _generateTemplate = (
+        generateData: ToGenerateData
+      ): Promise<void> => {
+        return new Promise(function (resolve, reject) {
+          delete me.state.toGenerate[generateData.name]; // mark completed
+          if (me.getGenerateScript(generateData.name)) {
+            let rendered = 0;
+            let pinger = new Pinger(
+              generateData.name,
+              (id: string) => {
+                log(
+                  pico.yellow("Waiting for generator to call resolve: " + id)
+                );
+              },
+              3000
+            );
+            const generateDone = (response: GeneratorResponse) => {
+              pinger.stop();
+              log(pico.yellow("Generator Resolved: " + generateData.name));
+
+              if (rendered == 0) {
+                const pathStars = (generateData.generate.match(/\*/g) || [])
+                  .length;
+                if (pathStars > 0) {
+                  if (me.verbose) {
+                    log(
+                      pico.yellow(
+                        "Generate script '" +
+                          generateData.name +
+                          "' requested no pages.  Ignoring."
+                      )
+                    );
+                  }
+                } else {
+                  if (me.verbose) {
+                    log(
+                      pico.yellow(
+                        "Rendering template " +
+                          generateData.name +
+                          " with absolute generate path after running its generate script."
+                      )
+                    );
+                  }
+
+                  toRender++; // need to generate just one page
+                  generateSimple(generateData.name, generateData.generate);
+                }
+              }
+
+              // callback on generate script complete
+              me.processGeneratorResponse(response, generateData.name);
+              checkDone(generateData.name);
+              resolve();
+            };
+
+            const generatePages = (response: GeneratorPages) => {
+              log(
+                pico.yellow("Generating batch pages for: " + generateData.name)
+              );
+              let pages: PageGenerateRequest[];
+              if (!Array.isArray(response)) {
+                // script specified a single page to generate
+                pages = [response as PageGenerateRequest];
+              } else {
+                // script specified an array of pages to generate
+                pages = response as PageGenerateRequest[];
+              }
               const pathStars = (generateData.generate.match(/\*/g) || [])
                 .length;
-              if (pathStars > 0) {
-                if (me.verbose) {
-                  log(
-                    pico.yellow(
-                      "Generate script '" +
-                        generateData.name +
-                        "' requested no pages.  Ignoring."
-                    )
-                  );
-                }
+              if (pathStars > 1) {
+                throw new Error(
+                  "Generate paths can only include a single path replacement *" +
+                    generateData.name
+                );
+              } else if (pathStars == 0) {
+                throw new Error(
+                  "Generate paths must include a path replacement * when generating 1 or more pages from data." +
+                    generateData.name
+                );
               } else {
-                if (me.verbose) {
-                  log(
-                    pico.yellow(
-                      "Rendering template " +
-                        generateData.name +
-                        " with absolute generate path after running its generate script."
-                    )
-                  );
-                }
-
-                toRender++; // need to generate just one page
-                generateSimple(generateData.name, generateData.generate);
-              }
-            }
-
-            // callback on generate script complete
-            me.processGeneratorResponse(
-              response,
-              generateData.name,
-              me.getCacheName(generateData.name)
-            );
-            checkDone(generateData.name);
-          };
-
-          const generatePages = (response: GeneratorPages) => {
-            log(
-              pico.yellow("Generating batch pages for: " + generateData.name)
-            );
-            let pages: PageGenerateRequest[];
-            if (!Array.isArray(response)) {
-              // script specified a single page to generate
-              pages = [response as PageGenerateRequest];
-            } else {
-              // script specified an array of pages to generate
-              pages = response as PageGenerateRequest[];
-            }
-            const pathStars = (generateData.generate.match(/\*/g) || []).length;
-            if (pathStars > 1) {
-              throw new Error(
-                "Generate paths can only include a single path replacement *" +
-                  generateData.name
-              );
-            } else if (pathStars == 0) {
-              throw new Error(
-                "Generate paths must include a path replacement * when generating 1 or more pages from data." +
-                  generateData.name
-              );
-            } else {
-              if (pages.length == 0) {
-                if (me.verbose) {
-                  log(
-                    pico.yellow(
-                      "Generate script " +
-                        generateData.name +
-                        " requesting zero pages to render"
-                    )
-                  );
-                }
-              } else {
-                toRender += pages.length; // add extra pages to todo list
-                pages.forEach((generatePageRequest: PageGenerateRequest) => {
-                  const data = {
-                    global: me.getGlobalDataAccessProxy(generateData.name),
-                    ...generatePageRequest.data,
-                    ...me.state.frontMatter[generateData.name],
-                  };
-                  const starReplacedPath = generateData.generate.replace(
-                    /\*/,
-                    generatePageRequest.path
-                  );
-                  rendered++;
-                  try {
-                    const fixedPath = me.renderTemplate(
-                      generateData.name,
-                      starReplacedPath,
-                      data
+                if (pages.length == 0) {
+                  if (me.verbose) {
+                    log(
+                      pico.yellow(
+                        "Generate script " +
+                          generateData.name +
+                          " requesting zero pages to render"
+                      )
                     );
-                    checkDone(generateData.name, true, fixedPath);
-                  } catch (error) {
-                    checkDone(generateData.name);
                   }
-                });
+                } else {
+                  toRender += pages.length; // add extra pages to todo list
+                  pages.forEach((generatePageRequest: PageGenerateRequest) => {
+                    const data = {
+                      global: me.getGlobalDataAccessProxy(generateData.name),
+                      ...generatePageRequest.data,
+                      ...me.state.frontMatter[generateData.name],
+                    };
+                    const starReplacedPath = generateData.generate.replace(
+                      /\*/,
+                      generatePageRequest.path
+                    );
+                    rendered++;
+                    try {
+                      const fixedPath = me.renderTemplate(
+                        generateData.name,
+                        starReplacedPath,
+                        data
+                      );
+                      checkDone(generateData.name, true, fixedPath);
+                      resolve();
+                    } catch (error) {
+                      checkDone(generateData.name);
+                      resolve();
+                    }
+                  });
+                }
+              }
+            };
+            const generateError = (error: Error) => {
+              pinger.stop();
+              me.chalkUpError(generateData.name, error);
+              checkDone(generateData.name);
+              resolve();
+            };
+            let reason = "";
+            if (generateData.triggeredBy) {
+              switch (generateData.reason) {
+                case TriggerReason.Added:
+                  reason = "Added";
+                  break;
+                case TriggerReason.Modified:
+                  reason = "Modified";
+                  break;
+                case TriggerReason.Deleted:
+                  reason = "Deleted";
+                  break;
               }
             }
-          };
-          const generateError = (error: Error) => {
-            pinger.stop();
-            me.chalkUpError(generateData.name, error);
-            checkDone(generateData.name);
-          };
-          if (!me.state.cache[me.getCacheName(generateData.name)]) {
-            me.state.cache[me.getCacheName(generateData.name)] = {};
-          }
 
-          let reason = "";
-          if (generateData.triggeredBy) {
-            switch (generateData.reason) {
-              case TriggerReason.Added:
-                reason = "Added";
-                break;
-              case TriggerReason.Modified:
-                reason = "Modified";
-                break;
-              case TriggerReason.Deleted:
-                reason = "Deleted";
-                break;
-            }
-          }
+            const inputs = {
+              triggeredBy: generateData.triggeredBy
+                ? {
+                    path: generateData.triggeredBy,
+                    reason: reason,
+                  }
+                : undefined,
+              frontMatter: me.state.frontMatter[generateData.name],
+              global: me.getGlobalDataAccessProxy(generateData.name),
+            };
 
-          const inputs = {
-            triggeredBy: generateData.triggeredBy
-              ? {
-                  path: generateData.triggeredBy,
-                  reason: reason,
-                }
-              : undefined,
-            frontMatter: me.state.frontMatter[generateData.name],
-            global: me.getGlobalDataAccessProxy(generateData.name),
-          };
+            // in case a generate script wants to directly render a template
+            const _progress = [""];
+            const renderTemplate = (template: string, data: PageData) => {
+              _progress[0] = template;
+              try {
+                const html = me.renderRecursive(
+                  generateData.name,
+                  [],
+                  data,
+                  _progress,
+                  template
+                );
+                return html;
+              } catch (error) {
+                throw new Error(
+                  "Couldn't render template " +
+                    template +
+                    " (" +
+                    _progress[0] +
+                    "): " +
+                    error
+                );
+              }
+            };
 
-          // in case a generate script wants to directly render a template
-          const _progress = [""];
-          const renderTemplate = (template: string, data: PageData) => {
-            _progress[0] = template;
+            const code =
+              `((require, resolve, reject, generatePage, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  { ` +
+              me.getGenerateScript(generateData.name) +
+              `
+            func(generatePage,inputs,getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate).then(result=>resolve(result)).catch((error)=>reject(error));
+            })`;
+            me.expireCache();
             try {
-              const html = me.renderRecursive(
-                generateData.name,
-                [],
-                data,
-                _progress,
-                template
+              vm.runInThisContext(code)(
+                require,
+                generateDone, // set done
+                generateError,
+                generatePages, // render array of pages and continue
+                inputs,
+                me.getDataFileNames.bind(me, generateData.name),
+                me.state.cacheData,
+                me.scriptLogger.bind(null, generateData.name),
+                fm,
+                fspath.resolve(me.dataDir),
+                renderTemplate
               );
-              return html;
-            } catch (error) {
-              throw new Error(
-                "Couldn't render template " +
-                  template +
-                  " (" +
-                  _progress[0] +
-                  "): " +
-                  error
-              );
+            } catch (error: unknown) {
+              me.state.errorCount++;
+              if (error instanceof Error) {
+                generateError(error);
+              } else {
+                logError(pico.red("Unknown error " + error));
+                generateError(new Error("unknown error"));
+              }
             }
-          };
-
-          const code =
-            "((require, resolve, reject, generate, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  {" +
-            me.getGenerateScript(generateData.name) +
-            "})";
-          me.expireCache();
-          try {
-            vm.runInThisContext(code)(
-              require,
-              generateDone, // set done
-              generateError,
-              generatePages, // render array of pages and continue
-              inputs,
-              me.getDataFileNames.bind(me, generateData.name),
-              me.state.cache[me.getCacheName(generateData.name)],
-              me.scriptLogger.bind(null, generateData.name),
-              fm,
-              fspath.resolve(me.dataDir),
-              renderTemplate
-            );
-          } catch (error: unknown) {
-            me.state.errorCount++;
-            if (error instanceof Error) {
-              generateError(error);
-            } else {
-              logError(pico.red("Unknown error " + error));
-              generateError(new Error("unknown error"));
-            }
+          } else if (generateData.generate) {
+            generateSimple(generateData.name, generateData.generate);
           }
-        } else if (generateData.generate) {
-          generateSimple(generateData.name, generateData.generate);
-        }
-      });
+        });
+      };
+
+      if (pre) {
+        await _generateTemplate(pre);
+      }
+
+      await Promise.all(
+        toGenerate.map((generateData: ToGenerateData) => {
+          _generateTemplate(generateData);
+        })
+      );
+
+      if (post) {
+        await _generateTemplate(post);
+      }
     });
   }
 
@@ -988,7 +1027,7 @@ export class Templer {
     reason = TriggerReason.Modified
   ): void {
     const generate = this.state.frontMatter[name].generate as string;
-    if (generate) {
+    if (generate != undefined) {
       this.state.toGenerate[name] = {
         name: name,
         generate: generate,
@@ -996,37 +1035,6 @@ export class Templer {
         reason: reason,
       };
     }
-  }
-
-  /// -----------------------------------------------------------------------------
-  /// getGenerateScript
-  ///
-  /// Get cache name -- all scripts referring to another script share it's cache
-  /// -----------------------------------------------------------------------------
-  protected getCacheName(name: PageName): string {
-    return "shared";
-    // ... much more convenient if all pages share the same cache
-    // even though it forces "reusable generate scripts" to uniquely name their cache keys
-    /*
-    if (this.state.generateScripts[name]) {
-      return "_" + name;
-    }
-    const ref = this.state.generateScriptRefs[name];
-    if (ref) {
-      if (this.state.generateScripts[ref]) {
-        if (this.verbose) {
-          log(
-            pico.yellow(
-              "using reference cache '" + ref + "' for '" + name + "'"
-            )
-          );
-        }
-        return "_" + ref;
-      }
-    }
-    logError("Unexpected attempt to get cache for non script: " + name);
-    return "_ERROR";
-    */
   }
 
   /// -----------------------------------------------------------------------------
@@ -1110,11 +1118,7 @@ export class Templer {
         });
       }
       const p = fspath.resolve(this.outputDir + libDir + "/" + name + ".js");
-      this.state.outputData.lib.push({
-        source: name,
-        path: p,
-        time: getNowDate(),
-      });
+      this.updateFileWritten("lib", name, p);
       this.writeFileSafe(
         p,
         stripped,
@@ -1163,11 +1167,12 @@ export class Templer {
     for (let key in this.state.wildDepTree) {
       delete this.state.wildDepTree[key][template];
     }
-    delete this.state.globalDeps[template];
+    for (let key in this.state.globalDepTree) {
+      delete this.state.globalDepTree[key][template];
+    }
     delete this.state.frontMatter[template];
     delete this.state.toGenerate[template];
-    delete this.state.cache[this.getCacheName(template)];
-    delete this.state.outputData.outData[template];
+    this.state.cacheData = {};
   }
 
   /// -----------------------------------------------------------------------------
@@ -1178,7 +1183,7 @@ export class Templer {
   /// -----------------------------------------------------------------------------
   public processTemplateFilesPromise(
     file: string | undefined = undefined
-  ): Promise<string[]> {
+  ): Promise<ProcessTemplateFilesResponse> {
     const me = this;
     return new Promise(function (resolve, reject) {
       let list: string[] = [];
@@ -1193,21 +1198,27 @@ export class Templer {
         list = [file];
       }
 
-      const names: string[] = [];
+      const names: { [key: string]: boolean } = {};
+
+      // reset global dependency used tracking table
+      me.state.globalDepUpdated = {};
 
       let pending = list.length;
       const checkDone = (name?: string) => {
         if (name) {
-          names.push(name);
+          names[name] = true;
         }
         pending--;
         if (pending <= 0) {
-          resolve(names);
+          resolve({
+            updatedTemplates: Object.keys(names),
+            updatedGlobalDeps: Object.keys(me.state.globalDepUpdated),
+          });
         }
       };
 
       if (list.length == 0) {
-        resolve([]);
+        resolve({ updatedTemplates: [], updatedGlobalDeps: [] });
         return;
       }
 
@@ -1255,132 +1266,6 @@ export class Templer {
   }
 
   /// -----------------------------------------------------------------------------
-  /// processPreGenerate
-  ///
-  /// preGenerate.js creates global data for all generate scripts.
-  /// If changed via watcher, make sure to re-generate
-  /// any pages that asked to depend on global.
-  /// -----------------------------------------------------------------------------
-  public processPreGenerate(): Promise<void> {
-    const me = this;
-    return new Promise(function (resolve, reject) {
-      const g = me.inputDir + "/" + PRE_GENERATE_JS;
-      if (fs.existsSync(g)) {
-        let pinger = new Pinger(
-          "preGenerate",
-          (id: string) => {
-            log(pico.yellow("Waiting for generator to call resolve: " + id));
-          },
-          3000
-        );
-        const generateSuccess = (response: GeneratorResponse) => {
-          pinger.stop();
-          me.state.globalData = response.global;
-          me.processGeneratorResponse(
-            response,
-            PRE_GENERATE_JS,
-            me.getCacheName(PRE_GENERATE_NAME)
-          );
-          resolve();
-        };
-
-        const generateError = (error: Error) => {
-          pinger.stop();
-          me.chalkUpError(PRE_GENERATE_NAME, error);
-          reject(error);
-        };
-        const script = fs.readFileSync(g, "utf8");
-        if (!me.state.cache[me.getCacheName(PRE_GENERATE_NAME)]) {
-          me.state.cache[me.getCacheName(PRE_GENERATE_NAME)] = {};
-        }
-        const code =
-          "((require, resolve, reject, cache, log, dataDir) =>  {" +
-          script +
-          "})";
-        try {
-          vm.runInThisContext(code)(
-            require,
-            generateSuccess,
-            generateError,
-            me.state.cache[me.getCacheName(PRE_GENERATE_NAME)],
-            me.scriptLogger.bind(null, PRE_GENERATE_NAME),
-            fspath.resolve(me.dataDir)
-          );
-        } catch (error) {
-          me.state.errorCount++;
-          logError(error);
-          reject(error);
-        }
-      } else {
-        log(pico.blue(PRE_GENERATE_JS + " not found, skipping."));
-        resolve(); // no global data
-      }
-    });
-  }
-
-  /// -----------------------------------------------------------------------------
-  /// processPostGenerate
-  ///
-  /// postGenerate.js has access what we wrote during site generation
-  /// -----------------------------------------------------------------------------
-  public processPostGenerate(): Promise<void> {
-    const me = this;
-    return new Promise(function (resolve, reject) {
-      const g = me.inputDir + "/" + POST_GENERATE_JS;
-      if (fs.existsSync(g)) {
-        let pinger = new Pinger(
-          "postGenerate",
-          (id: string) => {
-            log(pico.yellow("Waiting for generator to call resolve: " + id));
-          },
-          3000
-        );
-        const generateSuccess = (response: GeneratorResponse) => {
-          pinger.stop();
-          me.processGeneratorResponse(
-            response,
-            POST_GENERATE_JS,
-            me.getCacheName(POST_GENERATE_NAME)
-          );
-          resolve();
-        };
-        const generateError = (error: Error) => {
-          me.state.errorCount++;
-          pinger.stop();
-          me.chalkUpError(POST_GENERATE_NAME, error);
-          reject(error);
-        };
-        const script = fs.readFileSync(g, "utf8");
-        if (!me.state.cache[me.getCacheName(POST_GENERATE_NAME)]) {
-          me.state.cache[me.getCacheName(POST_GENERATE_NAME)] = {};
-        }
-        const code =
-          "((require, resolve, reject, cache, output, log, dataDir) =>  {" +
-          script +
-          "})";
-        try {
-          vm.runInThisContext(code)(
-            require,
-            generateSuccess,
-            generateError,
-            me.state.cache[me.getCacheName(POST_GENERATE_NAME)],
-            me.state.outputData,
-            me.scriptLogger.bind(null, POST_GENERATE_NAME),
-            fspath.resolve(me.dataDir)
-          );
-        } catch (error) {
-          me.state.errorCount++;
-          logError(error);
-          reject(error);
-        }
-      } else {
-        log(pico.blue(POST_GENERATE_JS + " not found, skipping."));
-        resolve(); // no global data
-      }
-    });
-  }
-
-  /// -----------------------------------------------------------------------------
   /// updateDeps
   ///
   /// When watching for file changes, we make sure to
@@ -1403,9 +1288,6 @@ export class Templer {
         me.generatePages()
           .then(() => {
             log(pico.green("Dependency Updates Complete."));
-            return me.processPostGenerate();
-          })
-          .then(() => {
             resolve();
           })
           .catch((error) => {
@@ -1467,13 +1349,22 @@ export class Templer {
   }
 
   /// -----------------------------------------------------------------------------
-  /// getGlobalDeps
+  /// updateTemplateDeps
   ///
-  /// If the global data changed, anything that depended
-  /// on global data needs to be updated
+  /// When templates access global data keys...
   /// -----------------------------------------------------------------------------
-  getGlobalDeps(): Dependencies {
-    console.log(pico.green("Update Triggered by preGenerate.js change."));
-    return this.state.globalDeps;
+  getGlobalDataDeps(globalDataKey: string[]): Dependencies {
+    // when a template updates, it might write to 1 or more global data keys.
+    // we will compile a list of any templates that depend on those keys...
+    if (this.verbose) {
+      log(JSON.stringify(this.state.globalDepTree, null, "  "));
+    }
+    let dependencies: { [key: string]: boolean } = {};
+    for (const key of globalDataKey) {
+      Object.keys(this.state.globalDepTree[key]).forEach((templateName) => {
+        dependencies[templateName] = true;
+      });
+    }
+    return dependencies;
   }
 }

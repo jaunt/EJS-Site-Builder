@@ -105,7 +105,7 @@ const test = (CliFry) => {
       // STEP 4, wait for templer to be done initial run.
       await testRun.untilStdoutIncludes("Watching for changes");
       // and a bit in case file system is writing?
-      await testRun.sleep(300);
+      await testRun.sleep(200);
 
       let errOut = testRun.getStdout();
       let errorCount = 0;

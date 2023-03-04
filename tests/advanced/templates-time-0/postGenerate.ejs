@@ -1,0 +1,66 @@
+---
+generate: /postGenerate/*
+wrapper: wrappers/alternate
+---
+
+<div> <%- myData %></div>
+
+<script generate>
+  const func = (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+    return new Promise(function(resolve, reject) {
+      // test some async generation
+      const toGenerate = 5;
+
+      const pages = [];
+
+      let remaining = toGenerate;
+
+      const checkDone = () => {
+        remaining--;
+        if (remaining == 0) {
+          const keys = Object.keys(inputs.global.filesWritten);
+          const written = keys.map((key) => {
+            return {
+              path: key,
+              data: inputs.global.filesWritten[key],
+            };
+          });
+          // sort written based on path name
+          written.sort((a, b) => {
+            if (a.path < b.path) {
+              return -1;
+            }
+            if (a.path > b.path) {
+              return 1;
+            }
+            return 0;
+          });
+          // take only path from written
+          const writtenPaths = written.map((item) => {
+            return item.path;
+          });
+          // try generating all in one call
+          generatePages(pages);
+          resolve({
+            siteFiles: {
+              "/fileswritten.json": JSON.stringify(writtenPaths, null, 2),
+            },
+          });
+        }
+      };
+
+      for (let i = 0; i < toGenerate; i++) {
+        setTimeout(() => {
+          pages.push({
+            path: "page" + i.toString(),
+            data: {
+              myData: "hello 2" + i,
+              title: i.toString(),
+            },
+          });
+          checkDone();
+        }, Math.floor(Math.random() * 100));
+      }
+    });
+  }
+</script>

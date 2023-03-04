@@ -13,35 +13,40 @@ wrapper: wrappers/main
 <script generate>
   const path = require("path");
   const fs = require("fs");
-  let posts;
-  if (!inputs.triggeredBy) {
-    posts = getDataFileNames("blog/*.html"); // can use glob.
-  } else {
-    posts = [inputs.triggeredBy.path];
+
+  const func = (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+    return new Promise(function(resolve, reject) {
+      let posts;
+      if (!inputs.triggeredBy) {
+        posts = getDataFileNames("blog/*.html"); // can use glob.
+      } else {
+        posts = [inputs.triggeredBy.path];
+      }
+
+      posts = posts.map((filepath) => {
+        const raw = fs.readFileSync(filepath, "utf8");
+        const p = path.parse(filepath);
+        return {
+          path: p.name,
+          data: {
+            title: "blog post " + p.name,
+            html: raw,
+          },
+        };
+      });
+
+      // maybe we want post data as json to be injested by a javascript component...
+      siteData = {};
+      siteData["posts/data.json"] = {
+        "Hello": "There"
+      }
+
+      generatePages(posts); // call as many times as we need with 1 or more requests
+
+      resolve({
+        siteFiles: siteData,
+        watchGlobs: ["blog/*.html"],
+      });
+    });
   }
-
-  posts = posts.map((filepath) => {
-    const raw = fs.readFileSync(filepath, "utf8");
-    const p = path.parse(filepath);
-    return {
-      path: p.name,
-      data: {
-        title: "blog post " + p.name,
-        html: raw,
-      },
-    };
-  });
-
-  // maybe we want post data as json to be injested by a javascript component...
-  siteData = {};
-  siteData["posts/data.json"] = {
-    "Hello": "There"
-  }
-
-  generate(posts); // call as many times as we need with 1 or more requests
-
-  resolve({
-    siteFiles: siteData,
-    watchGlobs: ["blog/*.html"],
-  });
 </script>

@@ -7,28 +7,36 @@ fromPage: I am random
 <div><%- myData %></div>
 
 <script generate>
-  // test some async generation
-  const toGenerate = 5;
+  const func = (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+    return new Promise(function(resolve, reject) {
+      // test some async generation
+      const toGenerate = 5;
 
-  let remaining = toGenerate;
+      let remaining = toGenerate;
 
-  const checkDone = (request) => {
-    generate(request); // request this page be created
-    remaining--;
-    if (remaining == 0) {
-      resolve(); // we're done
-    }
-  };
+      const checkDone = (request) => {
+        log(JSON.stringify(request, null, 2))
+        generatePages(request); // request this page be created
+        remaining--;
+        log("------------------------------")
+        log(remaining)
+        if (remaining == 0) {
+          log("resolving...")
+          resolve(); // we're done
+        }
+      };
 
-  for (let i = 0; i < toGenerate; i++) {
-    setTimeout(() => {
-      checkDone({
-        path: "page" + i.toString(),
-        data: {
-          myData: "hello " + i,
-          title: i.toString(),
-        },
-      });
-    }, Math.floor(Math.random() * 100));
+      for (let i = 0; i < toGenerate; i++) {
+        setTimeout(() => {
+          checkDone({
+            path: "page" + i.toString(),
+            data: {
+              myData: "hello " + i,
+              title: i.toString(),
+            },
+          });
+        }, Math.floor(Math.random() * 100));
+      }
+    });
   }
 </script>

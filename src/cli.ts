@@ -10,15 +10,7 @@ import process from "process";
 import { isRelative, Pinger, makeLoggers } from "@danglingdev/shared-ts";
 import { exit } from "process";
 
-import {
-  Templer,
-  PRE_GENERATE_JS,
-  PRE_GENERATE_NAME,
-  POST_GENERATE_JS,
-  POST_GENERATE_NAME,
-  Dependencies,
-  TriggerReason,
-} from "./api";
+import { Templer, Dependencies, TriggerReason } from "./api";
 
 // this is only safe because templer is a stand-alone cli, not a module
 const LIB_VERSION = require("../package.json").version;
@@ -39,7 +31,6 @@ const program = new Command()
   .option("-o, --public <publicDir>", "public directory")
   .option("-c, --cache <cacheDir>", "cache directory")
   .option("-nw, --noWatch", "quit after processing all templates")
-  .option("-wo, --watchOnly", "don't process at start, only watch")
   .option("-cc, --clearCache", "clear cache on start")
   .option("-v, --verbose", "logging verbosity");
 
@@ -84,7 +75,6 @@ const publicDir = getOption("public", "");
 const cacheDir = getOption("cache", "./templer/cache");
 const verbose = getOption("verbose", "");
 const noWatch = getOption("noWatch", "");
-const watchOnly = getOption("watchOnly", "");
 
 if (verbose) {
   log("Options detected:");
@@ -97,17 +87,11 @@ if (verbose) {
         public: publicDir,
         cache: cacheDir,
         noWatch: noWatch,
-        watchOnly: watchOnly,
       },
       null,
       "\t"
     )
   );
-}
-
-if (watchOnly && noWatch) {
-  logError("Can't both watch and not watch!  Exiting.");
-  exit(BAD_OPTIONS);
 }
 
 const isOneOrTheOtherRelative = (a: string, b: string): Boolean => {
@@ -225,14 +209,6 @@ const startWatching = () => {
         prefix: fspath.join(dataDir),
       },
       {
-        kind: PRE_GENERATE_NAME,
-        prefix: fspath.join(inputDir, PRE_GENERATE_JS),
-      },
-      {
-        kind: POST_GENERATE_NAME,
-        prefix: fspath.join(inputDir, POST_GENERATE_JS),
-      },
-      {
         kind: "template",
         prefix: fspath.join(inputDir),
       },
@@ -257,28 +233,7 @@ const startWatching = () => {
   ) => {
     pinger.restart();
     const check = getKind(p);
-    if (check.kind == PRE_GENERATE_NAME) {
-      templer
-        .processPreGenerate()
-        .then(() => {
-          log("Pre Generate JS updated -- updating deps");
-          deps = { ...deps, ...templer.getGlobalDeps() };
-        })
-        .catch((error) => {
-          logError("Pre Generate JS update error: ", error);
-        });
-    } else if (check.kind == POST_GENERATE_NAME) {
-      templer
-        .processPostGenerate()
-        .then(() => {
-          log("Post Generate JS updated");
-          // nothing can depend on post generate
-        })
-        .catch((error) => {
-          logError("Post Generate JS update error: ");
-          log(error);
-        });
-    } else if (check.kind == "template") {
+    if (check.kind == "template") {
       if (reason == TriggerReason.Added || reason == TriggerReason.Modified) {
         // step 1. update the template itself,
         templer
@@ -286,8 +241,15 @@ const startWatching = () => {
           .then((updateList) => {
             log("Template Updated: " + p);
             // render it:
-            // step 2. ... then any other templates depending on it
-            deps = { ...deps, ...templer.getTemplateDeps(updateList[0]) };
+            // s(tep 2. ... then any other templates depending on it
+            if (updateList.updatedTemplates.length != 1) {
+              throw "Unexpected updatedTemplates is not 1";
+            }
+            deps = {
+              ...deps,
+              ...templer.getTemplateDeps(updateList.updatedTemplates[0]),
+              ...templer.getGlobalDataDeps(updateList.updatedGlobalDeps),
+            };
             log("Ready to update deps:");
             log(JSON.stringify(deps));
           })
@@ -350,39 +312,15 @@ const startWatching = () => {
   );
 };
 
-if (!watchOnly) {
-  // step 1:  process global.js
-  templer
-    .processPreGenerate()
-    .then(() => {
-      // step 2. process existing src files
-      return templer.processTemplateFilesPromise();
-    })
-    .then(() => {
-      // step 3. wait until first batch page generation
-      return templer.generatePages();
-    })
-    .then(() => {
-      // step 3. wait until first batch page generation
-      return templer.processPostGenerate();
-    })
-    .then(() => {
-      startWatching();
-    })
-    .catch((error) => {
-      logError(error);
-    });
-} else {
-  templer
-    .processPreGenerate()
-    .then(() => {
-      // step 2. process existing src files
-      return templer.processTemplateFilesPromise();
-    })
-    .then(() => {
-      startWatching();
-    })
-    .catch((error) => {
-      logError(error);
-    });
-}
+templer
+  .processTemplateFilesPromise()
+  .then(() => {
+    // step 3. wait until first batch page generation
+    return templer.generatePages();
+  })
+  .then(() => {
+    startWatching();
+  })
+  .catch((error) => {
+    logError(error);
+  });

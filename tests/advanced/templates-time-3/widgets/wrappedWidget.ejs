@@ -1,0 +1,11 @@
+---
+fun: stuff
+foods: [grape, apple]
+wrapper: wrappers/widget
+---
+<div class="<%= className %>"><%= text %></div>
+<div>My wrapped buttons are clicky at <%= fun %></div>
+<% for (food of foods) { %>
+<%= foods %>
+Fruit: <%= food %>
+<% } %>

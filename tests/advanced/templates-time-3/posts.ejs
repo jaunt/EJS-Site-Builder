@@ -1,0 +1,52 @@
+---
+generate: /posts/*
+wrapper: wrappers/main
+---
+
+<%- html %>
+
+<script entry>
+  import data from "data.json";
+  console.log(data);
+</script>
+
+<script generate>
+  const path = require("path");
+  const fs = require("fs");
+  let posts;
+  if (!inputs.triggeredBy) {
+    posts = getDataFileNames("blog/*.html"); // can use glob.
+  } else {
+    posts = [inputs.triggeredBy.path];
+  }
+
+  posts = posts.map((filepath) => {
+    const raw = fs.readFileSync(filepath, "utf8");
+    const p = path.parse(filepath);
+    return {
+      path: p.name,
+      data: {
+        title: "blog post " + p.name,
+        html: raw,
+      },
+    };
+  });
+
+  // maybe we want post data as json to be injested by a javascript component...
+  siteData = {};
+  postData = []
+  posts.forEach((post) => {
+    postData.push({
+      path: post.path,
+      title: post.title,
+    });
+  });
+  siteData["posts/data.json"] = postData
+
+  generate(posts);
+
+  resolve({
+    siteFiles: siteData,
+    watchGlobs: ["blog/*.html"],
+  });
+</script>

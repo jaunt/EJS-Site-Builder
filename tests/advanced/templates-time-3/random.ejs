@@ -1,0 +1,37 @@
+---
+generate: /random/*
+wrapper: wrappers/alternate
+---
+
+<div> <%- myData %></div>
+
+<script generate>
+  // test some async generation
+  const toGenerate = 5;
+
+  const pages = [];
+
+  let remaining = toGenerate;
+
+  const checkDone = () => {
+    remaining--;
+    if (remaining == 0) {
+      // try generating all in one call
+      generate(pages);
+      resolve();
+    }
+  };
+
+  for (let i = 0; i < toGenerate; i++) {
+    setTimeout(() => {
+      pages.push({
+        path: "page" + i.toString(),
+        data: {
+          myData: "hello 2" + i,
+          title: i.toString(),
+        },
+      });
+      checkDone();
+    }, Math.floor(Math.random() * 100));
+  }
+</script>
