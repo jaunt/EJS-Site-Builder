@@ -123,7 +123,7 @@ type GeneratorResponse = {
   global: PageData; // only valid from pregenerat
 };
 
-type TemplerData = {
+type EjsSiteBuilderData = {
   generateScripts: Script;
   generateScriptRefs: ScriptRef;
   entryScripts: Script;
@@ -174,7 +174,7 @@ function stringifyFuncs(_: any, v: any) {
   return v;
 }
 
-export class Templer {
+export class EjsSiteBuilder {
   readonly inputDir: string;
   readonly dataDir: string;
   readonly outputDir: string;
@@ -198,7 +198,7 @@ export class Templer {
     this.loadCache();
   }
 
-  private state: TemplerData = {
+  private state: EjsSiteBuilderData = {
     generateScripts: {},
     generateScriptRefs: {},
     entryScripts: {},
@@ -399,19 +399,20 @@ export class Templer {
     source: string,
     path: string
   ): void {
+    const rel = fspath.relative(this.outPath, path);
     const now = getNowDate();
     source += " " + now;
     // add to fileswritten if it doesn't exist or set modification and push to source
-    if (!this.state.filesWritten[path]) {
-      this.state.filesWritten[path] = {
+    if (!this.state.filesWritten[rel]) {
+      this.state.filesWritten[rel] = {
         kind: kind,
         source: [source],
         created: now,
         modified: now,
       };
     } else {
-      this.state.filesWritten[path].source.push(source);
-      this.state.filesWritten[path].modified = now;
+      this.state.filesWritten[rel].source.push(source);
+      this.state.filesWritten[rel].modified = now;
     }
   }
 
@@ -1064,7 +1065,7 @@ export class Templer {
           pico.red(
             "Generate-use script template in: '" +
               name +
-              "' not specified correctly.  See: (https://jaunt.github.io/templer/docs/input/templates)"
+              "' not specified correctly.  See: (https://jaunt.github.io/ejssitebuilder/docs/input/templates)"
           )
         );
       }

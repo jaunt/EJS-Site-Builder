@@ -48,8 +48,8 @@ const outputMatchesExpected = (testRun, time) => {
     execFileSync("diff", [
       "--unified",
       "-r",
-      testRun.dir + "/output-time-" + time,
       expectedDir,
+      testRun.dir + "/output-time-" + time,
     ]);
     return true;
   } catch (error) {
@@ -99,10 +99,10 @@ const test = (CliFry) => {
     await testRun.sleep(300);
 
     try {
-      // STEP 3, start Templer
+      // STEP 3, start EjsSiteBuilder
       await testRun.start(200);
 
-      // STEP 4, wait for templer to be done initial run.
+      // STEP 4, wait for ejssitebuilder to be done initial run.
       await testRun.untilStdoutIncludes("Watching for changes");
       // and a bit in case file system is writing?
       await testRun.sleep(200);

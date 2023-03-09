@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Templer",
+      "name": "Launch EjsSiteBuilder",
       "program": "${workspaceFolder}/src/cli.ts",
       "request": "launch",
       "preLaunchTask": "build",

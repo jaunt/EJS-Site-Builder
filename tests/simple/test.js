@@ -40,8 +40,8 @@ const test = (CliFry) => {
         execFileSync("diff", [
           "--unified",
           "-r",
-          testRun.dir + "/output/",
           testRun.dir + "/expected/",
+          testRun.dir + "/output/",
         ]);
         resolve("success");
       } catch (error) {

@@ -1,7 +1,7 @@
 {
-  "name": "@danglingdev/templer",
+  "name": "@danglingdev/ejs-site-builder",
   "version": "2.0.0",
-  "description": "Minimalistic javascript powered site generator, full dependency tracking, fast updates",
+  "description": "Minimalistic EJS javascript powered site generator, full dependency tracking, fast updates",
   "main": "./lib/index.js",
   "scripts": {
     "test": "npx clifry -n lib/cli.js",
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jaunt/templer.git"
+    "url": "git+https://github.com/jaunt/EJS-Site-Builder.git"
   },
   "keywords": [
     "ssg"
@@ -21,9 +21,9 @@
   "author": "Stephen Evans",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/jaunt/templer/issues"
+    "url": "https://github.com/jaunt/EJS-Site-Builder/issues"
   },
-  "homepage": "https://github.com/jaunt/templer#readme",
+  "homepage": "https://github.com/jaunt/EJS-Site-Builder/#readme",
   "devDependencies": {
     "@types/node": "^18.11.9",
     "git-tag-version": "^1.3.1",
@@ -52,6 +52,6 @@
     "lib/**/*"
   ],
   "bin": {
-    "templer": "lib/cli.js"
+    "ejssitebuilder": "lib/cli.js"
   }
 }

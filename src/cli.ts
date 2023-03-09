@@ -10,14 +10,14 @@ import process from "process";
 import { isRelative, Pinger, makeLoggers } from "@danglingdev/shared-ts";
 import { exit } from "process";
 
-import { Templer, Dependencies, TriggerReason } from "./api";
+import { EjsSiteBuilder, Dependencies, TriggerReason } from "./api";
 
-// this is only safe because templer is a stand-alone cli, not a module
+// this is only safe because ejssitebuilder is a stand-alone cli, not a module
 const LIB_VERSION = require("../package.json").version;
 
 const BAD_OPTIONS = 3;
 
-console.log(pico.black(pico.bgWhite(pico.bold("\n TEMPLER \n"))));
+console.log(pico.black(pico.bgWhite(pico.bold("\n EJS Site Builder \n"))));
 console.log(pico.blue("Version " + LIB_VERSION + "\n"));
 
 const loggers = makeLoggers("@ ");
@@ -38,7 +38,7 @@ program.version(LIB_VERSION);
 program.parse(process.argv);
 const options = program.opts();
 
-nconf.argv().env().file({ file: "./templer.json" });
+nconf.argv().env().file({ file: "./ejssitebuilder.json" });
 const optionsConfig = nconf.get("options") || {};
 
 const getOption = (opt: string, def: string): string => {
@@ -47,7 +47,7 @@ const getOption = (opt: string, def: string): string => {
       pico.yellow(
         "Warning, command line argument " +
           pico.white(opt) +
-          " is overriding option specified in templer.json"
+          " is overriding option specified in ejssitebuilder.json"
       )
     );
   }
@@ -68,11 +68,11 @@ const getOption = (opt: string, def: string): string => {
   return result;
 };
 
-const inputDir = getOption("input", "./templer/input");
-const dataDir = getOption("data", "./templer/data");
-const outputDir = getOption("output", "./templer/output");
+const inputDir = getOption("input", "./ejssitebuilder/input");
+const dataDir = getOption("data", "./ejssitebuilder/data");
+const outputDir = getOption("output", "./ejssitebuilder/output");
 const publicDir = getOption("public", "");
-const cacheDir = getOption("cache", "./templer/cache");
+const cacheDir = getOption("cache", "./ejssitebuilder/cache");
 const verbose = getOption("verbose", "");
 const noWatch = getOption("noWatch", "");
 
@@ -146,7 +146,13 @@ if (publicDir) {
   copyDir(publicDir, outputDir);
 }
 
-const templer = new Templer(inputDir, dataDir, outputDir, cacheDir, verbose);
+const ejssitebuilder = new EjsSiteBuilder(
+  inputDir,
+  dataDir,
+  outputDir,
+  cacheDir,
+  verbose
+);
 
 // We want to the cache to store to disk whenever we exit.
 // simplified from:
@@ -156,7 +162,7 @@ let _exited = false;
 const onExit = (shouldExit: boolean, signal: number) => {
   if (_exited) return;
   _exited = true;
-  templer.storeCache();
+  ejssitebuilder.storeCache();
   if (shouldExit === true) {
     process.exit(128 + signal);
   }
@@ -186,7 +192,7 @@ let deps: Dependencies = {};
 
 const startWatching = () => {
   // step 3. watch src directory
-  let errors = templer.getErrorCount();
+  let errors = ejssitebuilder.getErrorCount();
 
   if (errors > 0) {
     logError("Errors detected: " + errors);
@@ -236,8 +242,10 @@ const startWatching = () => {
     if (check.kind == "template") {
       if (reason == TriggerReason.Added || reason == TriggerReason.Modified) {
         // step 1. update the template itself,
-        templer
-          .processTemplateFilesPromise(templer.getTemplateFileName(check.name))
+        ejssitebuilder
+          .processTemplateFilesPromise(
+            ejssitebuilder.getTemplateFileName(check.name)
+          )
           .then((updateList) => {
             log("Template Updated: " + p);
             // render it:
@@ -247,8 +255,8 @@ const startWatching = () => {
             }
             deps = {
               ...deps,
-              ...templer.getTemplateDeps(updateList.updatedTemplates[0]),
-              ...templer.getGlobalDataDeps(updateList.updatedGlobalDeps),
+              ...ejssitebuilder.getTemplateDeps(updateList.updatedTemplates[0]),
+              ...ejssitebuilder.getGlobalDataDeps(updateList.updatedGlobalDeps),
             };
             log("Ready to update deps:");
             log(JSON.stringify(deps));
@@ -259,16 +267,16 @@ const startWatching = () => {
       } else if (reason == TriggerReason.Deleted) {
         // step 1. clean up the template.  this will surely
         // produce errors from anything depending on it.
-        templer.processDeletedTemplatePromise(
-          templer.getTemplateFileName(check.name)
+        ejssitebuilder.processDeletedTemplatePromise(
+          ejssitebuilder.getTemplateFileName(check.name)
         );
       }
     } else if (check.kind == "data") {
       // when it's data, we need to process separately for
       // every file in case a generator can rebuild for a single file.
       const dataFileName = fspath.resolve(dataDir + "/" + check.name);
-      const dataDeps = templer.getDataDeps(dataFileName);
-      templer.updateDeps(dataDeps, dataFileName, reason);
+      const dataDeps = ejssitebuilder.getDataDeps(dataFileName);
+      ejssitebuilder.updateDeps(dataDeps, dataFileName, reason);
     }
   };
 
@@ -290,7 +298,7 @@ const startWatching = () => {
     "watcher",
     (id: string) => {
       pinger.stop();
-      templer
+      ejssitebuilder
         .updateDeps({ ...deps })
         .then(() => {
           log("Dependencies updated.");
@@ -300,7 +308,7 @@ const startWatching = () => {
         })
         .finally(() => {
           deps = {};
-          const newCount = templer.getErrorCount();
+          const newCount = ejssitebuilder.getErrorCount();
           if (newCount > errors) {
             logError("New errors detected: " + (newCount - errors));
             errors = newCount;
@@ -312,11 +320,11 @@ const startWatching = () => {
   );
 };
 
-templer
+ejssitebuilder
   .processTemplateFilesPromise()
   .then(() => {
     // step 3. wait until first batch page generation
-    return templer.generatePages();
+    return ejssitebuilder.generatePages();
   })
   .then(() => {
     startWatching();

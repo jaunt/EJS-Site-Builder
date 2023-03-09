@@ -1,18 +1,13 @@
-# Templer
+# EJS Site Builder
 
-#### Minimalistic javascript powered site generator, full dependency tracking, fast updates.
+#### Minimalistic EJS javascript powered site generator, full dependency tracking, fast updates.
 
-## Design Constraints
-
-1. Respond to template or data changes as fast as possible.
-2. Avoid unnecessary site rebuilds like the plague with first class dependency tracking.
-3. Don't add extra features that are already solved by other tools.
-4. Take advantage of existing awesome dev tools like Vite.
-5. Don't try to please everyone.
-6. Express ourselves with javascript, not massive config files.
-
-## Highlights
-
+- Respond to template or data changes as fast as possible.
+- Avoid unnecessary site rebuilds like the plague with first class dependency tracking.
+- Don't add extra features that are already solved by other tools.
+- Take advantage of existing awesome dev tools like Vite.
+- Don't try to please everyone.
+- Express ourselves with javascript, not massive config files.
 - Effecient Dependecy Tracking.
 - Javascript EJS templating for performance and flexibilty.
 - Designed to integrate with Vite.
@@ -22,8 +17,8 @@
 
 ## Documentation
 
-[DOCS](https://templer.netlify.app/)
+[DOCS](https://ejssitebuilder.netlify.app/)
 
-Templer docs are made with Templer, Tailwind, and Vite, hosted on Netlify.
+EjsSiteBuilder docs are made with EjsSiteBuilder, Tailwind, and Vite, hosted on Netlify.
 
-Apart from reading the docs, a great way to learn Templer is to explore the [Templer docs repository](https://github.com/jaunt/templerDocs), specifically the templer folder which generates the src folder which is processed by vite.
+Apart from reading the docs, a great way to learn EjsSiteBuilder is to explore the [EJS Site Builder docs repository](https://github.com/jaunt/EJS-Site-Builder-Docs), specifically the ejssitebuilder folder which generates the src folder which is processed by vite.
