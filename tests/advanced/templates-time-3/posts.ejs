@@ -11,42 +11,44 @@ wrapper: wrappers/main
 </script>
 
 <script generate>
-  const path = require("path");
-  const fs = require("fs");
-  let posts;
-  if (!inputs.triggeredBy) {
-    posts = getDataFileNames("blog/*.html"); // can use glob.
-  } else {
-    posts = [inputs.triggeredBy.path];
-  }
+  const func = (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+    const path = require("path");
+    const fs = require("fs");
+    let posts;
+    if (!inputs.triggeredBy) {
+      posts = getDataFileNames("blog/*.html"); // can use glob.
+    } else {
+      posts = [inputs.triggeredBy.path];
+    }
 
-  posts = posts.map((filepath) => {
-    const raw = fs.readFileSync(filepath, "utf8");
-    const p = path.parse(filepath);
-    return {
-      path: p.name,
-      data: {
-        title: "blog post " + p.name,
-        html: raw,
-      },
-    };
-  });
-
-  // maybe we want post data as json to be injested by a javascript component...
-  siteData = {};
-  postData = []
-  posts.forEach((post) => {
-    postData.push({
-      path: post.path,
-      title: post.title,
+    posts = posts.map((filepath) => {
+      const raw = fs.readFileSync(filepath, "utf8");
+      const p = path.parse(filepath);
+      return {
+        path: p.name,
+        data: {
+          title: "blog post " + p.name,
+          html: raw,
+        },
+      };
     });
-  });
-  siteData["posts/data.json"] = postData
 
-  generate(posts);
+    // maybe we want post data as json to be injested by a javascript component...
+    siteData = {};
+    postData = []
+    posts.forEach((post) => {
+      postData.push({
+        path: post.path,
+        title: post.title,
+      });
+    });
+    siteData["posts/data.json"] = postData
 
-  resolve({
-    siteFiles: siteData,
-    watchGlobs: ["blog/*.html"],
-  });
+    generate(posts);
+
+    return {
+      siteFiles: siteData,
+      watchGlobs: ["blog/*.html"],
+    };
+  }
 </script>

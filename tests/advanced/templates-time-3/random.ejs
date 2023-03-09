@@ -3,35 +3,25 @@ generate: /random/*
 wrapper: wrappers/alternate
 ---
 
-<div> <%- myData %></div>
+<div> sync return nothing <%- myData %></div>
 
 <script generate>
-  // test some async generation
-  const toGenerate = 5;
+  function func() {
+    // generate some pages but don't return anything.
+    const toGenerate = 5;
 
-  const pages = [];
+    const pages = [];
 
-  let remaining = toGenerate;
+    let remaining = toGenerate;
 
-  const checkDone = () => {
-    remaining--;
-    if (remaining == 0) {
-      // try generating all in one call
-      generate(pages);
-      resolve();
-    }
-  };
-
-  for (let i = 0; i < toGenerate; i++) {
-    setTimeout(() => {
-      pages.push({
+    for (let i = 0; i < toGenerate; i++) {
+      generate({
         path: "page" + i.toString(),
         data: {
           myData: "hello 2" + i,
           title: i.toString(),
-        },
-      });
-      checkDone();
-    }, Math.floor(Math.random() * 100));
+        }
+      })
+    }
   }
 </script>

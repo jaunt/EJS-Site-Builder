@@ -945,12 +945,21 @@ export class Templer {
                 );
               }
             };
-
+            // generate func can be a promise or a regular function
             const code =
               `((require, resolve, reject, generatePage, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  { ` +
               me.getGenerateScript(generateData.name) +
               `
-            func(generatePage,inputs,getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate).then(result=>resolve(result)).catch((error)=>reject(error));
+              try {
+                const result = func(generatePage,inputs,getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate)
+                if (result instanceof Promise) {
+                  result.then(result=>resolve(result)).catch((error)=>reject(error));
+                } else {
+                  resolve(result);
+                }
+              } catch (error) {
+                reject(error);
+              }
             })`;
             me.expireCache();
             try {
@@ -1348,11 +1357,11 @@ export class Templer {
     return dependencies;
   }
 
-  /// -----------------------------------------------------------------------------
+  /// ----------------------------------------------------------------------------
   /// updateTemplateDeps
   ///
   /// When templates access global data keys...
-  /// -----------------------------------------------------------------------------
+  /// ----------------------------------------------------------------------------
   getGlobalDataDeps(globalDataKey: string[]): Dependencies {
     // when a template updates, it might write to 1 or more global data keys.
     // we will compile a list of any templates that depend on those keys...

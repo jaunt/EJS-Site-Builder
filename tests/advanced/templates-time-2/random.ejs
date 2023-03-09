@@ -6,32 +6,23 @@ wrapper: wrappers/alternate
 <div> <%- myData %></div>
 
 <script generate>
-  // test some async generation
-  const toGenerate = 5;
-
-  const pages = [];
-
-  let remaining = toGenerate;
-
-  const checkDone = () => {
-    remaining--;
-    if (remaining == 0) {
-      // try generating all in one call
-      generate(pages);
-      resolve();
+  const func = async (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+    // another way of generating multiple pages
+    const promises = [];
+    const toGenerate = 5;
+    for (let i = 0; i < toGenerate; i++) {
+      promises.push(new Promise((resolve, reject) => {
+        setTimeout(() => {
+          generatePages({
+            path: "page" + i.toString(),
+            data: {
+              myData: "hello " + i,
+              title: i.toString(),
+            },
+          });
+        }, Math.floor(Math.random() * 100));
+      }));
     }
-  };
-
-  for (let i = 0; i < toGenerate; i++) {
-    setTimeout(() => {
-      pages.push({
-        path: "page" + i.toString(),
-        data: {
-          myData: "hello 2" + i,
-          title: i.toString(),
-        },
-      });
-      checkDone();
-    }, Math.floor(Math.random() * 100));
+    await Promise.all(promises);
   }
 </script>
