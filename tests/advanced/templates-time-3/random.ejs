@@ -6,7 +6,7 @@ wrapper: wrappers/alternate
 <div> sync return nothing <%- myData %></div>
 
 <script generate>
-  function func() {
+  function func(generatePages) {
     // generate some pages but don't return anything.
     const toGenerate = 5;
 
@@ -15,7 +15,7 @@ wrapper: wrappers/alternate
     let remaining = toGenerate;
 
     for (let i = 0; i < toGenerate; i++) {
-      generate({
+      generatePages({
         path: "page" + i.toString(),
         data: {
           myData: "hello 2" + i,

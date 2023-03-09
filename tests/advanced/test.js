@@ -65,7 +65,7 @@ const outputMatchesExpected = (testRun, time) => {
   }
 };
 
-const lastTest = 2; // number of final time test
+const lastTest = 3; // number of final time test
 
 const test = (CliFry) => {
   return new Promise(async function (resolve, reject) {
@@ -136,7 +136,7 @@ const test = (CliFry) => {
 
         await testRun.untilStdoutIncludes("Processing");
 
-        await testRun.untilOutputIdleSeconds(3, 5000);
+        await testRun.untilOutputIdleSeconds(1, 5000);
 
         let errOut = testRun.getStdout();
         let errorCount = 0;

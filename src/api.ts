@@ -71,6 +71,8 @@ export enum TriggerReason {
   Deleted,
 }
 
+const TriggerReasonText = ["Added", "Modified", "Deleted"] as const;
+
 type ToGenerateData = {
   name: PageName;
   generate: string;
@@ -711,300 +713,259 @@ export class Templer {
   /// running generate scripts if specified,
   /// rendering templates to disk.
   /// -----------------------------------------------------------------------------
-  public generatePages(): Promise<void> {
+  public async generatePages(): Promise<void> {
     const me = this;
-    return new Promise(async function (resolve, _) {
-      let toGenerate = Object.values(me.state.toGenerate);
-      let toRender = toGenerate.length; // todo list count
 
-      const checkDone = (
-        pageName: PageName,
-        generated: Boolean = false,
-        outPath: string = ""
-      ) => {
-        // if a page was generated, process any entry scripts
-        if (generated) {
-          me.processEntryScripts(pageName, outPath);
-        }
-        // else subtract from todo list
-        toRender--;
-        if (toRender == 0) {
-          resolve();
-        }
+    let toGenerate = Object.values(me.state.toGenerate);
+
+    if (toGenerate.length == 0) {
+      log(pico.yellow("\nNothing to do.  Will wait for changes."));
+      return;
+    }
+
+    const generateSimple = (pageName: string, path: string) => {
+      // Generate a page that does not have a generate script
+      // or returns no page creation data from it
+      const data = {
+        global: me.getGlobalDataAccessProxy(pageName),
+        ...me.state.frontMatter[pageName],
       };
-
-      if (toRender == 0) {
-        log(pico.yellow("\nNothing to do.  Will wait for changes."));
-        resolve();
-        return;
+      try {
+        const fixedPath = me.renderTemplate(pageName, path, data);
+        me.processEntryScripts(pageName, fixedPath);
+      } catch (error) {
+        logError(error);
       }
+    };
 
-      const generateSimple = (pageName: string, path: string) => {
-        // Generate a page that does not have a generate script
-        // or returns no page creation data from it
-        const data = {
-          global: me.getGlobalDataAccessProxy(pageName),
-          ...me.state.frontMatter[pageName],
-        };
-        try {
-          const fixedPath = me.renderTemplate(pageName, path, data);
-          checkDone(pageName, true, fixedPath);
-        } catch (error) {
-          checkDone(pageName);
-        }
-      };
+    const hasPre = toGenerate.findIndex((item) => item.name == "preGenerate");
+    // if there is a preGenerate template, make sure it's processed first
+    const pre = toGenerate[hasPre];
+    if (hasPre > 0) {
+      toGenerate.splice(hasPre, 1);
+    }
 
-      const hasPre = toGenerate.findIndex((item) => item.name == "preGenerate");
-      // if there is a preGenerate template, make sure it's processed first
-      const pre = toGenerate[hasPre];
-      if (hasPre > 0) {
-        toGenerate.splice(hasPre, 1);
-      }
+    const hasPost = toGenerate.findIndex((item) => item.name == "postGenerate");
+    // if there is a postGenerate template, make sure it's processed last
+    const post = toGenerate[hasPost];
+    if (hasPost > -1 && hasPost < toGenerate.length - 1) {
+      toGenerate.splice(hasPost, 1);
+    }
 
-      const hasPost = toGenerate.findIndex(
-        (item) => item.name == "postGenerate"
-      );
-      // if there is a postGenerate template, make sure it's processed last
-      const post = toGenerate[hasPost];
-      if (hasPost > -1 && hasPost < toGenerate.length - 1) {
-        toGenerate.splice(hasPost, 1);
-      }
+    const _generateTemplate = (generateData: ToGenerateData): Promise<void> => {
+      return new Promise(function (resolve, reject) {
+        delete me.state.toGenerate[generateData.name]; // mark completed
+        if (me.getGenerateScript(generateData.name)) {
+          let rendered = 0;
+          let pinger = new Pinger(
+            generateData.name,
+            (id: string) => {
+              log(pico.yellow("Waiting for generator to call resolve: " + id));
+            },
+            3000
+          );
+          const generateError = (error: Error) => {
+            pinger.stop();
+            me.chalkUpError(generateData.name, error);
+            resolve();
+          };
+          const generateDone = (response: GeneratorResponse) => {
+            pinger.stop();
+            log(pico.yellow("Generator Resolved: " + generateData.name));
 
-      const _generateTemplate = (
-        generateData: ToGenerateData
-      ): Promise<void> => {
-        return new Promise(function (resolve, reject) {
-          delete me.state.toGenerate[generateData.name]; // mark completed
-          if (me.getGenerateScript(generateData.name)) {
-            let rendered = 0;
-            let pinger = new Pinger(
-              generateData.name,
-              (id: string) => {
-                log(
-                  pico.yellow("Waiting for generator to call resolve: " + id)
-                );
-              },
-              3000
-            );
-            const generateDone = (response: GeneratorResponse) => {
-              pinger.stop();
-              log(pico.yellow("Generator Resolved: " + generateData.name));
-
-              if (rendered == 0) {
-                const pathStars = (generateData.generate.match(/\*/g) || [])
-                  .length;
-                if (pathStars > 0) {
-                  if (me.verbose) {
-                    log(
-                      pico.yellow(
-                        "Generate script '" +
-                          generateData.name +
-                          "' requested no pages.  Ignoring."
-                      )
-                    );
-                  }
-                } else {
-                  if (me.verbose) {
-                    log(
-                      pico.yellow(
-                        "Rendering template " +
-                          generateData.name +
-                          " with absolute generate path after running its generate script."
-                      )
-                    );
-                  }
-
-                  toRender++; // need to generate just one page
-                  generateSimple(generateData.name, generateData.generate);
-                }
-              }
-
-              // callback on generate script complete
-              me.processGeneratorResponse(response, generateData.name);
-              checkDone(generateData.name);
-              resolve();
-            };
-
-            const generatePages = (response: GeneratorPages) => {
-              log(
-                pico.yellow("Generating batch pages for: " + generateData.name)
-              );
-              let pages: PageGenerateRequest[];
-              if (!Array.isArray(response)) {
-                // script specified a single page to generate
-                pages = [response as PageGenerateRequest];
-              } else {
-                // script specified an array of pages to generate
-                pages = response as PageGenerateRequest[];
-              }
+            if (rendered == 0) {
               const pathStars = (generateData.generate.match(/\*/g) || [])
                 .length;
-              if (pathStars > 1) {
-                throw new Error(
-                  "Generate paths can only include a single path replacement *" +
-                    generateData.name
-                );
-              } else if (pathStars == 0) {
-                throw new Error(
-                  "Generate paths must include a path replacement * when generating 1 or more pages from data." +
-                    generateData.name
-                );
-              } else {
-                if (pages.length == 0) {
-                  if (me.verbose) {
-                    log(
-                      pico.yellow(
-                        "Generate script " +
-                          generateData.name +
-                          " requesting zero pages to render"
-                      )
-                    );
-                  }
-                } else {
-                  toRender += pages.length; // add extra pages to todo list
-                  pages.forEach((generatePageRequest: PageGenerateRequest) => {
-                    const data = {
-                      global: me.getGlobalDataAccessProxy(generateData.name),
-                      ...generatePageRequest.data,
-                      ...me.state.frontMatter[generateData.name],
-                    };
-                    const starReplacedPath = generateData.generate.replace(
-                      /\*/,
-                      generatePageRequest.path
-                    );
-                    rendered++;
-                    try {
-                      const fixedPath = me.renderTemplate(
-                        generateData.name,
-                        starReplacedPath,
-                        data
-                      );
-                      checkDone(generateData.name, true, fixedPath);
-                      resolve();
-                    } catch (error) {
-                      checkDone(generateData.name);
-                      resolve();
-                    }
-                  });
+              if (pathStars > 0) {
+                if (me.verbose) {
+                  log(
+                    pico.yellow(
+                      "Generate script '" +
+                        generateData.name +
+                        "' requested no pages.  Ignoring."
+                    )
+                  );
                 }
-              }
-            };
-            const generateError = (error: Error) => {
-              pinger.stop();
-              me.chalkUpError(generateData.name, error);
-              checkDone(generateData.name);
-              resolve();
-            };
-            let reason = "";
-            if (generateData.triggeredBy) {
-              switch (generateData.reason) {
-                case TriggerReason.Added:
-                  reason = "Added";
-                  break;
-                case TriggerReason.Modified:
-                  reason = "Modified";
-                  break;
-                case TriggerReason.Deleted:
-                  reason = "Deleted";
-                  break;
+              } else {
+                if (me.verbose) {
+                  log(
+                    pico.yellow(
+                      "Rendering template " +
+                        generateData.name +
+                        " with absolute generate path after running its generate script."
+                    )
+                  );
+                }
+                generateSimple(generateData.name, generateData.generate);
               }
             }
 
-            const inputs = {
-              triggeredBy: generateData.triggeredBy
-                ? {
-                    path: generateData.triggeredBy,
-                    reason: reason,
-                  }
-                : undefined,
-              frontMatter: me.state.frontMatter[generateData.name],
-              global: me.getGlobalDataAccessProxy(generateData.name),
-            };
+            // callback on generate script complete
+            me.processGeneratorResponse(response, generateData.name);
+            resolve();
+          };
 
-            // in case a generate script wants to directly render a template
-            const _progress = [""];
-            const renderTemplate = (template: string, data: PageData) => {
-              _progress[0] = template;
-              try {
-                const html = me.renderRecursive(
-                  generateData.name,
-                  [],
-                  data,
-                  _progress,
-                  template
-                );
-                return html;
-              } catch (error) {
-                throw new Error(
-                  "Couldn't render template " +
-                    template +
-                    " (" +
-                    _progress[0] +
-                    "): " +
-                    error
-                );
+          const generatePagesRequest = (response: GeneratorPages) => {
+            log(
+              pico.yellow("Generating batch pages for: " + generateData.name)
+            );
+            let pages: PageGenerateRequest[];
+            if (!Array.isArray(response)) {
+              // script specified a single page to generate
+              pages = [response as PageGenerateRequest];
+            } else {
+              // script specified an array of pages to generate
+              pages = response as PageGenerateRequest[];
+            }
+            const pathStars = (generateData.generate.match(/\*/g) || []).length;
+            if (pathStars > 1) {
+              throw new Error(
+                "Generate paths can only include a single path replacement *" +
+                  generateData.name
+              );
+            } else if (pathStars == 0) {
+              throw new Error(
+                "Generate paths must include a path replacement * when generating 1 or more pages from data." +
+                  generateData.name
+              );
+            } else {
+              if (pages.length == 0) {
+                if (me.verbose) {
+                  log(
+                    pico.yellow(
+                      "Generate script " +
+                        generateData.name +
+                        " requesting zero pages to render"
+                    )
+                  );
+                }
+              } else {
+                pages.forEach((generatePageRequest: PageGenerateRequest) => {
+                  const data = {
+                    global: me.getGlobalDataAccessProxy(generateData.name),
+                    ...generatePageRequest.data,
+                    ...me.state.frontMatter[generateData.name],
+                  };
+                  const starReplacedPath = generateData.generate.replace(
+                    /\*/,
+                    generatePageRequest.path
+                  );
+                  rendered++;
+                  try {
+                    const fixedPath = me.renderTemplate(
+                      generateData.name,
+                      starReplacedPath,
+                      data
+                    );
+                    me.processEntryScripts(generateData.name, fixedPath);
+                  } catch (error) {
+                    logError(error);
+                  }
+                });
               }
-            };
-            // generate func can be a promise or a regular function
-            const code =
-              `((require, resolve, reject, generatePage, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  { ` +
-              me.getGenerateScript(generateData.name) +
-              `
+            }
+          };
+
+          let reason = "";
+          if (generateData.triggeredBy) {
+            reason = TriggerReasonText[generateData.reason];
+          }
+          const inputs = {
+            triggeredBy: generateData.triggeredBy
+              ? {
+                  path: generateData.triggeredBy,
+                  reason: reason,
+                }
+              : undefined,
+            frontMatter: me.state.frontMatter[generateData.name],
+            global: me.getGlobalDataAccessProxy(generateData.name),
+          };
+
+          // in case a generate script wants to directly render a template
+          const _progress = [""];
+          const renderTemplateRequest = (template: string, data: PageData) => {
+            _progress[0] = template;
+            try {
+              const html = me.renderRecursive(
+                generateData.name,
+                [],
+                data,
+                _progress,
+                template
+              );
+              return html;
+            } catch (error) {
+              throw new Error(
+                "Couldn't render template " +
+                  template +
+                  " (" +
+                  _progress[0] +
+                  "): " +
+                  error
+              );
+            }
+          };
+          // generate func can be a promise or a regular function
+          const code =
+            `((require, resolve, reject, generatePage, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  { ` +
+            me.getGenerateScript(generateData.name) +
+            `
               try {
                 const result = func(generatePage,inputs,getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate)
                 if (result instanceof Promise) {
                   result.then(result=>resolve(result)).catch((error)=>reject(error));
                 } else {
+                  console.log("sync function resolving now...")
                   resolve(result);
                 }
               } catch (error) {
                 reject(error);
               }
             })`;
-            me.expireCache();
-            try {
-              vm.runInThisContext(code)(
-                require,
-                generateDone, // set done
-                generateError,
-                generatePages, // render array of pages and continue
-                inputs,
-                me.getDataFileNames.bind(me, generateData.name),
-                me.state.cacheData,
-                me.scriptLogger.bind(null, generateData.name),
-                fm,
-                fspath.resolve(me.dataDir),
-                renderTemplate
-              );
-            } catch (error: unknown) {
-              me.state.errorCount++;
-              if (error instanceof Error) {
-                generateError(error);
-              } else {
-                logError(pico.red("Unknown error " + error));
-                generateError(new Error("unknown error"));
-              }
+          me.expireCache();
+          try {
+            vm.runInThisContext(code)(
+              require,
+              generateDone, // set done
+              generateError,
+              generatePagesRequest, // render array of pages and continue
+              inputs,
+              me.getDataFileNames.bind(me, generateData.name),
+              me.state.cacheData,
+              me.scriptLogger.bind(null, generateData.name),
+              fm,
+              fspath.resolve(me.dataDir),
+              renderTemplateRequest
+            );
+          } catch (error: unknown) {
+            me.state.errorCount++;
+            if (error instanceof Error) {
+              generateError(error);
+            } else {
+              logError(pico.red("Unknown error " + error));
+              generateError(new Error("unknown error"));
             }
-          } else if (generateData.generate) {
-            generateSimple(generateData.name, generateData.generate);
           }
-        });
-      };
+        } else if (generateData.generate) {
+          generateSimple(generateData.name, generateData.generate);
+          resolve();
+        }
+      });
+    };
 
-      if (pre) {
-        await _generateTemplate(pre);
-      }
+    if (pre) {
+      await _generateTemplate(pre);
+    }
 
-      await Promise.all(
-        toGenerate.map((generateData: ToGenerateData) => {
-          _generateTemplate(generateData);
-        })
-      );
-
-      if (post) {
-        await _generateTemplate(post);
-      }
+    const promiseList = toGenerate.map((generateData: ToGenerateData) => {
+      return _generateTemplate(generateData);
     });
+
+    await Promise.all(promiseList);
+
+    if (post) {
+      await _generateTemplate(post);
+    }
   }
 
   /// -----------------------------------------------------------------------------
