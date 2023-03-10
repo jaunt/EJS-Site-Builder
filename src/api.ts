@@ -924,19 +924,33 @@ export class EjsSiteBuilder {
             if (!script) {
               throw new Error("No script found for " + generateData.name);
             }
-            script.runInThisContext()(
-              require,
-              generateDone, // set done
-              generateError,
-              generatePagesRequest, // render array of pages and continue
-              inputs,
-              me.getDataFileNames.bind(me, generateData.name),
-              me.state.cacheData,
-              me.scriptLogger.bind(null, generateData.name),
-              fm,
-              fspath.resolve(me.dataDir),
-              renderTemplateRequest
-            );
+            const f = script.runInThisContext();
+            try {
+              const result = f({
+                require,
+                generatePages: generatePagesRequest, // render array of pages and continue
+                inputs,
+                getDataFileNames: me.getDataFileNames.bind(
+                  me,
+                  generateData.name
+                ),
+                cache: me.state.cacheData,
+                log: me.scriptLogger.bind(null, generateData.name),
+                frontMatterParse: fm,
+                dataDir: fspath.resolve(me.dataDir),
+                renderTemplate: renderTemplateRequest,
+              });
+              if (result instanceof Promise) {
+                result
+                  .then((result) => generateDone(result))
+                  .catch((error) => generateError(error));
+              } else {
+                console.log("sync function resolving now...");
+                generateDone(result);
+              }
+            } catch (error) {
+              reject(error);
+            }
           } catch (error: unknown) {
             me.state.errorCount++;
             if (error instanceof Error) {
@@ -1066,27 +1080,10 @@ export class EjsSiteBuilder {
   /// -----------------------------------------------------------------------------
   protected compileGenerateScript(name: PageName, lineOffset: number = 0) {
     // generate func can be a promise or a regular function
-    const code =
-      `((require, resolve, reject, generatePage, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  { ` +
-      this.state.generateScripts[name] +
-      `
-        try {
-            const result = func(generatePage,inputs,getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate)
-            if (result instanceof Promise) {
-              result.then(result=>resolve(result)).catch((error)=>reject(error));
-            } else {
-              console.log("sync function resolving now...")
-              resolve(result);
-            }
-          } catch (error) {
-            reject(error);
-          }
-        })
-      `;
-
+    const code = this.state.generateScripts[name];
     this.state.generateCompiledScripts[name] = new vm.Script(code, {
       filename: this.state.generateScriptPaths[name],
-      lineOffset: lineOffset - 1,
+      lineOffset: lineOffset,
     });
   }
 

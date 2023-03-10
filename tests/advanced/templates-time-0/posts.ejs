@@ -11,10 +11,16 @@ wrapper: wrappers/main
 </script>
 
 <script generate>
-  const path = require("path");
-  const fs = require("fs");
+  (({
+    require,
+    generatePages,
+    inputs,
+    getDataFileNames,
+    cache,
+  }) => {
+    const path = require("path");
+    const fs = require("fs");
 
-  const func = (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
     return new Promise(function(resolve, reject) {
       let posts;
       if (!inputs.triggeredBy) {
@@ -48,5 +54,5 @@ wrapper: wrappers/main
         watchGlobs: ["blog/*.html"],
       });
     });
-  }
+  })
 </script>

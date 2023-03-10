@@ -6,7 +6,10 @@ wrapper: wrappers/alternate
 <div> <%- myData %></div>
 
 <script generate>
-  const func = (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+  (({
+    generatePages,
+    inputs,
+  }) => {
     return new Promise(function(resolve, reject) {
       // test some async generation
       const toGenerate = 5;
@@ -62,5 +65,5 @@ wrapper: wrappers/alternate
         }, Math.floor(Math.random() * 100));
       }
     });
-  }
+  })
 </script>

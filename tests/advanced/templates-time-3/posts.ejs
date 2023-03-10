@@ -11,7 +11,12 @@ wrapper: wrappers/main
 </script>
 
 <script generate>
-  const func = (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+  (({
+    require,
+    generatePages,
+    inputs,
+    getDataFileNames
+  }) => {
     const path = require("path");
     const fs = require("fs");
     let posts;
@@ -50,5 +55,5 @@ wrapper: wrappers/main
       siteFiles: siteData,
       watchGlobs: ["blog/*.html"],
     };
-  }
+  })
 </script>

@@ -38,11 +38,11 @@ Car color: <%= car %>
 <script generate>
   // can use this to optionally run multiple async data sources through this template to create 1 or more pages.
   // as well as to write data files
-  const func = async (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+  (async () => {
     return {
       siteFiles: {
         ["README.md"]: "*This will get generated!*",
       },
     };
-  }
+  })
 </script>

@@ -7,7 +7,9 @@ fromPage: I am random
 <div><%- myData %></div>
 
 <script generate>
-  const func = (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+  (({
+    generatePages
+  }) => {
     return new Promise(function(resolve, reject) {
       // test some async generation
       const toGenerate = 5;
@@ -34,5 +36,5 @@ fromPage: I am random
         }, Math.floor(Math.random() * 100));
       }
     });
-  }
+  })
 </script>

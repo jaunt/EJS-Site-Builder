@@ -6,7 +6,9 @@ wrapper: wrappers/alternate
 <div> <%- myData %></div>
 
 <script generate>
-  const func = async (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+  (async ({
+    generatePages,
+  }) => {
     // another way of generating multiple pages
     const promises = [];
     const toGenerate = 5;
@@ -25,5 +27,5 @@ wrapper: wrappers/alternate
       }));
     }
     await Promise.all(promises);
-  }
+  })
 </script>

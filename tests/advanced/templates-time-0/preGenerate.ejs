@@ -3,7 +3,7 @@ generate: /preGenerate/*
 ---
 
 <script generate>
-  const func = async (generatePages, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) => {
+  (() => {
     const now = "2021-nov-15";
     const version = 1.4;
 
@@ -22,5 +22,5 @@ generate: /preGenerate/*
         toLowerCase: toLowerCase,
       },
     };
-  }
+  })
 </script>
