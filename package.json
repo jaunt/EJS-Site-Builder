@@ -1,6 +1,6 @@
 {
   "name": "@danglingdev/ejs-site-builder",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "Minimalistic EJS javascript powered site generator, full dependency tracking, fast updates",
   "main": "./lib/index.js",
   "scripts": {
