@@ -41,6 +41,10 @@ type Script = {
   [key: PageName]: Code;
 };
 
+type CompiledScript = {
+  [key: PageName]: vm.Script;
+};
+
 type ScriptRef = {
   [key: PageName]: string;
 };
@@ -129,6 +133,7 @@ type GeneratorResponse = {
 
 type EjsSiteBuilderData = {
   generateScripts: Script;
+  generateCompiledScripts: CompiledScript;
   generateScriptRefs: ScriptRef;
   generateScriptPaths: ScriptPath;
   entryScripts: Script;
@@ -205,6 +210,7 @@ export class EjsSiteBuilder {
 
   private state: EjsSiteBuilderData = {
     generateScripts: {},
+    generateCompiledScripts: {},
     generateScriptRefs: {},
     generateScriptPaths: {},
     entryScripts: {},
@@ -912,28 +918,13 @@ export class EjsSiteBuilder {
               );
             }
           };
-          // generate func can be a promise or a regular function
-          const code =
-            `((require, resolve, reject, generatePage, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  { ` +
-            me.getGenerateScript(generateData.name) +
-            `
-              try {
-                const result = func(generatePage,inputs,getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate)
-                if (result instanceof Promise) {
-                  result.then(result=>resolve(result)).catch((error)=>reject(error));
-                } else {
-                  console.log("sync function resolving now...")
-                  resolve(result);
-                }
-              } catch (error) {
-                reject(error);
-              }
-            })`;
           me.expireCache();
           try {
-            vm.runInThisContext(code, {
-              filename: me.getGenerateScriptPath(generateData.name),
-            })(
+            const script = me.getGenerateCompiledScript(generateData.name);
+            if (!script) {
+              throw new Error("No script found for " + generateData.name);
+            }
+            script.runInThisContext()(
               require,
               generateDone, // set done
               generateError,
@@ -1017,6 +1008,31 @@ export class EjsSiteBuilder {
   }
 
   /// -----------------------------------------------------------------------------
+  /// getGenerateCompiledScript
+  ///
+  /// Get a compiled script for template, either direct or referred
+  /// -----------------------------------------------------------------------------
+  protected getGenerateCompiledScript(name: PageName): vm.Script | undefined {
+    if (this.state.generateScripts[name]) {
+      return this.state.generateCompiledScripts[name];
+    }
+    const ref = this.state.generateScriptRefs[name];
+    if (ref) {
+      if (this.state.generateScripts[ref]) {
+        if (this.verbose) {
+          log(
+            pico.yellow(
+              "using reference generate script '" + ref + "' for '" + name + "'"
+            )
+          );
+        }
+        return this.state.generateCompiledScripts[ref];
+      }
+    }
+    return undefined;
+  }
+
+  /// -----------------------------------------------------------------------------
   /// getGenerateScript
   ///
   /// Get script for template, either direct or referred
@@ -1042,28 +1058,36 @@ export class EjsSiteBuilder {
   }
 
   /// -----------------------------------------------------------------------------
-  /// getGeneratePath
+  /// compileGenerateScript
   ///
-  /// Get script path for template, either direct or referred
+  /// Process a script tag found in a template file.
+  /// - Generate scripts are stored,
+  /// - site scripts are state to output.
   /// -----------------------------------------------------------------------------
-  protected getGenerateScriptPath(name: PageName): string {
-    if (this.state.generateScripts[name]) {
-      return this.state.generateScriptPaths[name];
-    }
-    const ref = this.state.generateScriptRefs[name];
-    if (ref) {
-      if (this.state.generateScripts[ref]) {
-        if (this.verbose) {
-          log(
-            pico.yellow(
-              "using reference generate script '" + ref + "' for '" + name + "'"
-            )
-          );
-        }
-        return this.state.generateScriptPaths[ref];
-      }
-    }
-    return "";
+  protected compileGenerateScript(name: PageName, lineOffset: number = 0) {
+    // generate func can be a promise or a regular function
+    const code =
+      `((require, resolve, reject, generatePage, inputs, getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate) =>  { ` +
+      this.state.generateScripts[name] +
+      `
+        try {
+            const result = func(generatePage,inputs,getDataFileNames, cache, log, frontMatterParse, dataDir, renderTemplate)
+            if (result instanceof Promise) {
+              result.then(result=>resolve(result)).catch((error)=>reject(error));
+            } else {
+              console.log("sync function resolving now...")
+              resolve(result);
+            }
+          } catch (error) {
+            reject(error);
+          }
+        })
+      `;
+
+    this.state.generateCompiledScripts[name] = new vm.Script(code, {
+      filename: this.state.generateScriptPaths[name],
+      lineOffset: lineOffset - 1,
+    });
   }
 
   /// -----------------------------------------------------------------------------
@@ -1073,11 +1097,16 @@ export class EjsSiteBuilder {
   /// - Generate scripts are stored,
   /// - site scripts are state to output.
   /// -----------------------------------------------------------------------------
-  protected processScript(source: string, name: PageName): boolean {
+  protected processScript(
+    source: string,
+    name: PageName,
+    lineOffset: number = 0
+  ): boolean {
     if (source.startsWith(SCRIPT_GENERATE)) {
       // add generate source to build map
       const stripped = source.slice(SCRIPT_GENERATE_LENGTH, -END_SCRIPT_LENGTH);
       this.state.generateScripts[name] = stripped;
+      this.compileGenerateScript(name, lineOffset);
       return true;
     }
     if (source.startsWith(SCRIPT_GENERATE_USE)) {
@@ -1163,6 +1192,7 @@ export class EjsSiteBuilder {
   public processDeletedTemplatePromise(template: string): void {
     // clean up template state
     delete this.state.generateScripts[template];
+    delete this.state.generateCompiledScripts[template];
     delete this.state.generateScriptRefs[template];
     delete this.state.generateScriptPaths[template];
     delete this.state.entryScripts[template];
@@ -1239,8 +1269,40 @@ export class EjsSiteBuilder {
               content.attributes as FrontMatterEntries;
             const body = content.body;
             const remove: [number, number][] = [];
+
+            const bodyOffset = content.bodyBegin;
+
+            let scriptProgressIndex = 0;
+            const lines = body.split("\n");
+
+            const findScriptLineStartNumber = (): {
+              start: number;
+              end: number;
+            } => {
+              const progress = lines.slice(scriptProgressIndex);
+              const start = progress.findIndex((line) => {
+                return line.startsWith("<script");
+              });
+              const end = progress.findIndex((line) => {
+                return line.startsWith("</script>");
+              });
+              return { start: start, end: end };
+            };
+
             const replacer = (match: string, offset: number) => {
-              const used = me.processScript(match, name);
+              const { start, end } = findScriptLineStartNumber();
+              let scriptStartindex = 0;
+              if (start > -1) {
+                if (end == -1) throw new Error("Missing </script> tag");
+                scriptStartindex = scriptProgressIndex + start;
+                scriptProgressIndex += end + 1;
+              }
+              me.state.generateScriptPaths[name] = file;
+              const used = me.processScript(
+                match,
+                name,
+                scriptStartindex + bodyOffset
+              );
               if (used) {
                 const first = offset;
                 const second = offset + match.length;
@@ -1261,7 +1323,6 @@ export class EjsSiteBuilder {
             log("compiling template: " + name);
             me.compileTemplate(template.trim(), name);
             me.cueGeneration(name);
-            me.state.generateScriptPaths[name] = file;
             checkDone(name);
           });
         } else {

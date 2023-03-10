@@ -10,7 +10,7 @@
       "request": "launch",
       "preLaunchTask": "build",
       "skipFiles": ["<node_internals>/**"],
-      "type": "pwa-node"
+      "type": "node"
     },
     {
       "name": "Launch CliFry",
@@ -18,7 +18,7 @@
       "request": "launch",
       "preLaunchTask": "build",
       "skipFiles": ["<node_internals>/**"],
-      "type": "pwa-node",
+      "type": "node",
       "args": ["-t", "advanced", "-n", "${workspaceFolder}/lib/cli.js"]
     }
   ]
