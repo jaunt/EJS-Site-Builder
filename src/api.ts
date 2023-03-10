@@ -45,6 +45,10 @@ type ScriptRef = {
   [key: PageName]: string;
 };
 
+type ScriptPath = {
+  [key: PageName]: string;
+};
+
 export type Dependencies = {
   [key: PageName]: boolean;
 };
@@ -126,6 +130,7 @@ type GeneratorResponse = {
 type EjsSiteBuilderData = {
   generateScripts: Script;
   generateScriptRefs: ScriptRef;
+  generateScriptPaths: ScriptPath;
   entryScripts: Script;
   templateDepTree: DependencyTree;
   pathDepTree: DependencyTree;
@@ -201,6 +206,7 @@ export class EjsSiteBuilder {
   private state: EjsSiteBuilderData = {
     generateScripts: {},
     generateScriptRefs: {},
+    generateScriptPaths: {},
     entryScripts: {},
     templateDepTree: {},
     pathDepTree: {},
@@ -925,7 +931,9 @@ export class EjsSiteBuilder {
             })`;
           me.expireCache();
           try {
-            vm.runInThisContext(code)(
+            vm.runInThisContext(code, {
+              filename: me.getGenerateScriptPath(generateData.name),
+            })(
               require,
               generateDone, // set done
               generateError,
@@ -1034,6 +1042,31 @@ export class EjsSiteBuilder {
   }
 
   /// -----------------------------------------------------------------------------
+  /// getGeneratePath
+  ///
+  /// Get script path for template, either direct or referred
+  /// -----------------------------------------------------------------------------
+  protected getGenerateScriptPath(name: PageName): string {
+    if (this.state.generateScripts[name]) {
+      return this.state.generateScriptPaths[name];
+    }
+    const ref = this.state.generateScriptRefs[name];
+    if (ref) {
+      if (this.state.generateScripts[ref]) {
+        if (this.verbose) {
+          log(
+            pico.yellow(
+              "using reference generate script '" + ref + "' for '" + name + "'"
+            )
+          );
+        }
+        return this.state.generateScriptPaths[ref];
+      }
+    }
+    return "";
+  }
+
+  /// -----------------------------------------------------------------------------
   /// processScript
   ///
   /// Process a script tag found in a template file.
@@ -1131,6 +1164,7 @@ export class EjsSiteBuilder {
     // clean up template state
     delete this.state.generateScripts[template];
     delete this.state.generateScriptRefs[template];
+    delete this.state.generateScriptPaths[template];
     delete this.state.entryScripts[template];
     for (let key in this.state.pathDepTree) {
       delete this.state.pathDepTree[key][template];
@@ -1227,6 +1261,7 @@ export class EjsSiteBuilder {
             log("compiling template: " + name);
             me.compileTemplate(template.trim(), name);
             me.cueGeneration(name);
+            me.state.generateScriptPaths[name] = file;
             checkDone(name);
           });
         } else {
