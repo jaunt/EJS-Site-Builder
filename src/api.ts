@@ -1083,7 +1083,7 @@ export class EjsSiteBuilder {
     const code = this.state.generateScripts[name];
     this.state.generateCompiledScripts[name] = new vm.Script(code, {
       filename: this.state.generateScriptPaths[name],
-      lineOffset: lineOffset,
+      lineOffset: lineOffset - 1,
     });
   }
 
