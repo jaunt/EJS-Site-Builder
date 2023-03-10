@@ -4,6 +4,7 @@
   "description": "Minimalistic EJS javascript powered site generator, full dependency tracking, fast updates",
   "main": "./lib/index.js",
   "scripts": {
+    "pretest": "npm run build",
     "test": "npx clifry -n lib/cli.js",
     "debug": "node --inspect ./node_modules/@danglingdev/clifry/lib/clifry.js -n lib/cli.js",
     "start": "node lib/cli.js",
