@@ -1,6 +1,6 @@
 # EJS Site Builder
 
-##[GET STARTED :sunrise_over_mountains:](https://ejs-site-builder.netlify.app/guide/workflow/)
+## :sunrise_over_mountains: [GET STARTED](https://ejs-site-builder.netlify.app/guide/workflow/)
 
 #### Minimalistic EJS javascript powered site generator, full dependency tracking, fast updates.
 
