@@ -38,7 +38,7 @@ Car color: <%= car %>
 <script generate>
   // can use this to optionally run multiple async data sources through this template to create 1 or more pages.
   // as well as to write data files
-  (() => {
+  () => {
     return new Promise(function(resolve, reject) {
       resolve({
         siteFiles: {
@@ -46,5 +46,5 @@ Car color: <%= car %>
         },
       });
     });
-  })
+  }
 </script>

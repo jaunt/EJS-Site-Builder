@@ -7,7 +7,7 @@ fromPage: I am random
 <div><%- myData %></div>
 
 <script generate>
-  (({
+  ({
     generatePages
   }) => {
     return new Promise(function(resolve, reject) {
@@ -36,5 +36,5 @@ fromPage: I am random
         }, Math.floor(Math.random() * 100));
       }
     });
-  })
+  }
 </script>

@@ -1080,7 +1080,7 @@ export class EjsSiteBuilder {
   /// -----------------------------------------------------------------------------
   protected compileGenerateScript(name: PageName, lineOffset: number = 0) {
     // generate func can be a promise or a regular function
-    const code = this.state.generateScripts[name];
+    const code = "(" + this.state.generateScripts[name] + ")";
     this.state.generateCompiledScripts[name] = new vm.Script(code, {
       filename: this.state.generateScriptPaths[name],
       lineOffset: lineOffset - 1,
