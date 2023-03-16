@@ -1,5 +1,7 @@
 # EJS Site Builder
 
+##[GET STARTED :sunrise_over_mountains:](https://ejs-site-builder.netlify.app/guide/workflow/)
+
 #### Minimalistic EJS javascript powered site generator, full dependency tracking, fast updates.
 
 - Respond to template or data changes as fast as possible.
@@ -17,8 +19,8 @@
 
 ## Documentation
 
-[DOCS](https://ejssitebuilder.netlify.app/)
+[Get Started](https://ejs-site-builder.netlify.app/guide/workflow/)
 
-EjsSiteBuilder docs are made with EjsSiteBuilder, Tailwind, and Vite, hosted on Netlify.
+EJS-Site-Builder docs are made with EjsSiteBuilder, Tailwind, and Vite, hosted on Netlify.
 
 Apart from reading the docs, a great way to learn EjsSiteBuilder is to explore the [EJS Site Builder docs repository](https://github.com/jaunt/EJS-Site-Builder-Docs), specifically the ejssitebuilder folder which generates the src folder which is processed by vite.
