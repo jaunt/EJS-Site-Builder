@@ -1124,7 +1124,7 @@ export class EjsSiteBuilder {
           pico.red(
             "Generate-use script template in: '" +
               name +
-              "' not specified correctly.  See: (https://jaunt.github.io/ejssitebuilder/docs/input/templates)"
+              "' not specified correctly."
           )
         );
       }
@@ -1256,76 +1256,91 @@ export class EjsSiteBuilder {
 
       log(pico.green(`Processing ${pending} input files.`));
 
-      list.forEach((file: Path) => {
-        const name = me.testTemplate(file);
-        if (name) {
-          fs.readFile(file, "utf8", function (err, data) {
-            if (err) reject(err);
-            const content = fm(data);
-            me.state.frontMatter[name] =
-              content.attributes as FrontMatterEntries;
-            const body = content.body;
-            const remove: [number, number][] = [];
-
-            const bodyOffset = content.bodyBegin;
-
-            let scriptProgressIndex = 0;
-            const lines = body.split("\n");
-
-            const findScriptLineStartNumber = (): {
-              start: number;
-              end: number;
-            } => {
-              const progress = lines.slice(scriptProgressIndex);
-              const start = progress.findIndex((line) => {
-                return line.startsWith("<script");
-              });
-              const end = progress.findIndex((line) => {
-                return line.startsWith("</script>");
-              });
-              return { start: start, end: end };
-            };
-
-            const replacer = (match: string, offset: number) => {
-              const { start, end } = findScriptLineStartNumber();
-              let scriptStartindex = 0;
-              if (start > -1) {
-                if (end == -1) throw new Error("Missing </script> tag");
-                scriptStartindex = scriptProgressIndex + start;
-                scriptProgressIndex += end + 1;
+      const success = list.every((file: Path) => {
+        // define name as a string
+        let name: string | undefined = undefined;
+        try {
+          name = me.testTemplate(file);
+          if (name) {
+            fs.readFile(file, "utf8", function (err, data) {
+              if (err) {
+                logError(err);
+                return false;
               }
-              me.state.generateScriptPaths[name] = file;
-              const used = me.processScript(
-                match,
-                name,
-                scriptStartindex + bodyOffset
-              );
-              if (used) {
-                const first = offset;
-                const second = offset + match.length;
-                remove.push([first, second]);
-              }
-              return "";
-            };
-            body.replace(EXTRACT_SCRIPT, replacer);
-            // piece together template without scripts
-            let template = "";
-            let index = 0;
-            if (remove.length > 0) {
-              remove.forEach((script) => {
-                template += body.substr(index, script[0] - index);
-                index = script[1];
-              });
-            } else template = body;
-            log("compiling template: " + name);
-            me.compileTemplate(template.trim(), name);
-            me.cueGeneration(name);
+              const content = fm(data);
+              me.state.frontMatter[name as string] =
+                content.attributes as FrontMatterEntries;
+              const body = content.body;
+              const remove: [number, number][] = [];
+
+              const bodyOffset = content.bodyBegin;
+
+              let scriptProgressIndex = 0;
+              const lines = body.split("\n");
+
+              const findScriptLineStartNumber = (): {
+                start: number;
+                end: number;
+              } => {
+                const progress = lines.slice(scriptProgressIndex);
+                const start = progress.findIndex((line) => {
+                  return line.startsWith("<script");
+                });
+                const end = progress.findIndex((line) => {
+                  return line.startsWith("</script>");
+                });
+                return { start: start, end: end };
+              };
+
+              const replacer = (match: string, offset: number) => {
+                const { start, end } = findScriptLineStartNumber();
+                let scriptStartindex = 0;
+                if (start > -1) {
+                  if (end == -1) throw new Error("Missing </script> tag");
+                  scriptStartindex = scriptProgressIndex + start;
+                  scriptProgressIndex += end + 1;
+                }
+                me.state.generateScriptPaths[name as string] = file;
+                const used = me.processScript(
+                  match,
+                  name as string,
+                  scriptStartindex + bodyOffset
+                );
+                if (used) {
+                  const first = offset;
+                  const second = offset + match.length;
+                  remove.push([first, second]);
+                }
+                return "";
+              };
+
+              body.replace(EXTRACT_SCRIPT, replacer);
+              // piece together template without scripts
+              let template = "";
+              let index = 0;
+              if (remove.length > 0) {
+                remove.forEach((script) => {
+                  template += body.substring(index, script[0]);
+                  index = script[1];
+                });
+              } else template = body;
+              log("compiling template: " + name);
+              me.compileTemplate(template.trim(), name!);
+              me.cueGeneration(name!);
+              checkDone(name);
+            });
+          } else {
             checkDone(name);
-          });
-        } else {
-          checkDone();
+          }
+        } catch (error) {
+          logError(error);
+          checkDone(name);
         }
+        return true;
       });
+      if (!success) {
+        logError("Failed to render all pending templates.");
+      }
     });
   }
 
