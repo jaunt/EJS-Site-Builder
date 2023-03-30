@@ -338,11 +338,6 @@ export class EjsSiteBuilder {
     const globalDataAccessHandler = {
       get: function (...args: any) {
         // access to global deps was detected
-        if (!state.globalData[args[1] as string]) {
-          throw new Error(
-            "Accessing undefined global data Element: " + args[1]
-          );
-        }
         const dep = args[1];
         if (!state.globalDepTree[dep]) {
           state.globalDepTree[dep] = {};
