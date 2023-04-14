@@ -35,6 +35,7 @@ wrapper: wrappers/main
           title: "blog post " + p.name,
           html: raw,
         },
+        ext: "htm" // test customizing extension
       };
     });
 
@@ -53,7 +54,7 @@ wrapper: wrappers/main
 
     return {
       siteFiles: siteData,
-      watchGlobs: ["blog/*.html"],
+      watchGlobs: ["blog/*.md"],
     };
   }
 </script>

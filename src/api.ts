@@ -119,6 +119,7 @@ type FilesWritten = {
 type PageGenerateRequest = {
   path: string;
   data: PageData;
+  ext?: string; // allow override of output extension
 };
 
 type GeneratorPages = PageGenerateRequest[] | PageGenerateRequest;
@@ -656,7 +657,8 @@ export class EjsSiteBuilder {
   protected renderTemplate(
     template: TemplateName,
     path: string,
-    data: PageData
+    data: PageData,
+    overrideExtension?: string
   ) {
     let _progress = [template];
     const me = this;
@@ -690,8 +692,9 @@ export class EjsSiteBuilder {
       if (!fs.existsSync(writePath)) {
         me.mkdirSyncSafe(writePath, { recursive: true });
       }
-      const p = fspath.resolve(writePath + "/index.html");
-      me.updateFileWritten("html", template, p);
+      const ext = overrideExtension || "html";
+      const p = fspath.resolve(writePath + "/index." + ext);
+      me.updateFileWritten(ext, template, p);
       me.writeFileSafe(p, html, (err: NodeJS.ErrnoException | null): void => {
         if (err) {
           throw err;
@@ -865,7 +868,8 @@ export class EjsSiteBuilder {
                     const fixedPath = me.renderTemplate(
                       generateData.name,
                       starReplacedPath,
-                      data
+                      data,
+                      generatePageRequest.ext
                     );
                     me.processEntryScripts(generateData.name, fixedPath);
                   } catch (error) {
