@@ -263,7 +263,7 @@ export class EjsSiteBuilder {
       });
       files = micromatch(files, fixedGlobs);
     }
-    if (files.length == 0) {
+    if (files.length === 0) {
       logError(
         pico.red(
           "Warning, " +
@@ -360,7 +360,7 @@ export class EjsSiteBuilder {
     if (error.message) {
       log(pico.bgBlack(pico.white(error.message)));
     }
-    if (typeof error == "string") {
+    if (typeof error === "string") {
       log(pico.bgBlack(pico.white(error)));
     }
     if (error.stack) {
@@ -369,7 +369,7 @@ export class EjsSiteBuilder {
         const errorLine = Number(lines[0].split(":")[1]) - 1;
         const script = this.getGenerateScript(name).split("\n");
         script.forEach((line, index) => {
-          if (index == errorLine) {
+          if (index === errorLine) {
             log(pico.bgBlack(pico.red(line)));
           } else {
             log(pico.bgBlack(pico.blue(line)));
@@ -392,7 +392,7 @@ export class EjsSiteBuilder {
     // trim trailing path if it exists.
     // this should allow us to work no matter how
     // the user specified generate paths
-    if (path.length && path.slice(-1) == "/") {
+    if (path.length && path.slice(-1) === "/") {
       path = path.substring(0, path.length - 1);
       return path;
     }
@@ -512,7 +512,7 @@ export class EjsSiteBuilder {
     if (response.global) {
       const globalData = response.global;
       for (const key in globalData) {
-        if (this.state.globalData[key] == undefined) {
+        if (this.state.globalData[key] === undefined) {
           this.state.globalData[key] = globalData[key];
         } else {
           if (this.state.globalData[key] != globalData[key]) {
@@ -593,7 +593,7 @@ export class EjsSiteBuilder {
   protected getEntryScriptName(path: string): string {
     const parts = path.split("/");
     let scriptName = "";
-    if (path == "") {
+    if (path === "") {
       scriptName = "main";
     } else if (parts.length) {
       scriptName = parts[parts.length - 1];
@@ -617,8 +617,8 @@ export class EjsSiteBuilder {
   ): string {
     progress[0] = current;
     // Check for _body include
-    if (current == "_body") {
-      if (wrapStack.length == 0) {
+    if (current === "_body") {
+      if (wrapStack.length === 0) {
         throw new Error("Wrapper " + parent + " was not wrapping anything");
       }
       current = wrapStack.pop() as string;
@@ -675,7 +675,7 @@ export class EjsSiteBuilder {
         pagePath: path,
         pageName: template,
         lastPath: entryScriptName,
-        entryScript: (path == "/" ? "" : path + "/") + entryScriptName + ".js",
+        entryScript: (path === "/" ? "" : path + "/") + entryScriptName + ".js",
       };
 
       const renderData = {
@@ -731,7 +731,7 @@ export class EjsSiteBuilder {
 
     let toGenerate = Object.values(me.state.toGenerate);
 
-    if (toGenerate.length == 0) {
+    if (toGenerate.length === 0) {
       log(pico.yellow("\nNothing to do.  Will wait for changes."));
       return;
     }
@@ -751,14 +751,16 @@ export class EjsSiteBuilder {
       }
     };
 
-    const hasPre = toGenerate.findIndex((item) => item.name == "preGenerate");
+    const hasPre = toGenerate.findIndex((item) => item.name === "preGenerate");
     // if there is a preGenerate template, make sure it's processed first
     const pre = toGenerate[hasPre];
     if (hasPre > 0) {
       toGenerate.splice(hasPre, 1);
     }
 
-    const hasPost = toGenerate.findIndex((item) => item.name == "postGenerate");
+    const hasPost = toGenerate.findIndex(
+      (item) => item.name === "postGenerate"
+    );
     // if there is a postGenerate template, make sure it's processed last
     const post = toGenerate[hasPost];
     if (hasPost > -1 && hasPost < toGenerate.length - 1) {
@@ -786,7 +788,7 @@ export class EjsSiteBuilder {
             pinger.stop();
             log(pico.yellow("Generator Resolved: " + generateData.name));
 
-            if (rendered == 0) {
+            if (rendered === 0) {
               const pathStars = (generateData.generate.match(/\*/g) || [])
                 .length;
               if (pathStars > 0) {
@@ -836,13 +838,13 @@ export class EjsSiteBuilder {
                 "Generate paths can only include a single path replacement *" +
                   generateData.name
               );
-            } else if (pathStars == 0) {
+            } else if (pathStars === 0) {
               throw new Error(
                 "Generate paths must include a path replacement * when generating 1 or more pages from data." +
                   generateData.name
               );
             } else {
-              if (pages.length == 0) {
+              if (pages.length === 0) {
                 if (me.verbose) {
                   log(
                     pico.yellow(
@@ -1175,7 +1177,7 @@ export class EjsSiteBuilder {
     const rel = fspath.relative(this.inputDir, parsed.dir);
     const name = rel + (rel ? "/" : "") + parsed.name;
     const ext = fspath.parse(file).ext;
-    if (ext == ".ejs") {
+    if (ext === ".ejs") {
       return name;
     }
     return undefined;
@@ -1219,7 +1221,7 @@ export class EjsSiteBuilder {
     const me = this;
     return new Promise(function (resolve, reject) {
       let list: string[] = [];
-      if (file == undefined) {
+      if (file === undefined) {
         try {
           list = getAllFiles(me.inputDir);
         } catch (error) {
@@ -1249,7 +1251,7 @@ export class EjsSiteBuilder {
         }
       };
 
-      if (list.length == 0) {
+      if (list.length === 0) {
         resolve({ updatedTemplates: [], updatedGlobalDeps: [] });
         return;
       }
@@ -1296,7 +1298,7 @@ export class EjsSiteBuilder {
                 const { start, end } = findScriptLineStartNumber();
                 let scriptStartindex = 0;
                 if (start > -1) {
-                  if (end == -1) throw new Error("Missing </script> tag");
+                  if (end === -1) throw new Error("Missing </script> tag");
                   scriptStartindex = scriptProgressIndex + start;
                   scriptProgressIndex += end + 1;
                 }

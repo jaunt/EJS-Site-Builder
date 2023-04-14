@@ -239,8 +239,8 @@ const startWatching = () => {
   ) => {
     pinger.restart();
     const check = getKind(p);
-    if (check.kind == "template") {
-      if (reason == TriggerReason.Added || reason == TriggerReason.Modified) {
+    if (check.kind === "template") {
+      if (reason === TriggerReason.Added || reason === TriggerReason.Modified) {
         // step 1. update the template itself,
         ejssitebuilder
           .processTemplateFilesPromise(
@@ -264,14 +264,14 @@ const startWatching = () => {
           .catch((error) => {
             logError("Template update error: ", error);
           });
-      } else if (reason == TriggerReason.Deleted) {
+      } else if (reason === TriggerReason.Deleted) {
         // step 1. clean up the template.  this will surely
         // produce errors from anything depending on it.
         ejssitebuilder.processDeletedTemplatePromise(
           ejssitebuilder.getTemplateFileName(check.name)
         );
       }
-    } else if (check.kind == "data") {
+    } else if (check.kind === "data") {
       // when it's data, we need to process separately for
       // every file in case a generator can rebuild for a single file.
       const dataFileName = fspath.resolve(dataDir + "/" + check.name);
