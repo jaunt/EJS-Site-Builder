@@ -200,7 +200,7 @@ const startWatching = () => {
     log("Zero errors detected.");
   }
 
-  if (options.noWatch) {
+  if (noWatch) {
     log(`All files written.  No-watch option ending program now.`);
     watcher.close().then(() => console.log("closed"));
     return;
